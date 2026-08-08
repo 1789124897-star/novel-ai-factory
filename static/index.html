@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>小说AI工厂</title>
-<link rel="stylesheet" href="/static/css/style.css?v=2">
+<link rel="stylesheet" href="/static/css/style.css?v=3">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
 
@@ -16,37 +17,230 @@
     <p class="subtitle">从一句话主题，到带字幕的完整视频</p>
   </header>
 
-  <!-- Step 1: 叙事内核 -->
-  <section class="card" id="sectionInput">
-    <div class="step-badge">第一步</div>
-    <h2>编译叙事内核</h2>
-    <p class="hint">输入一个主题，AI 将拆解为人物、事件、预言三大叙事锚点。</p>
+  <!-- Nav Tabs -->
+  <nav class="nav-tabs">
+    <button class="nav-tab active" data-tab="tabNovel" onclick="switchTab('tabNovel')">📖 编译叙事内核</button>
+    <button class="nav-tab" data-tab="tabTTS" onclick="switchTab('tabTTS')">🎙️ Edge TTS 配音</button>
+    <button class="nav-tab" data-tab="tabVideo" onclick="switchTab('tabVideo')">🎬 视频制作</button>
+  </nav>
 
-    <div class="input-group">
-      <div class="field">
-        <label>故事主题</label>
-        <input id="themeInput" placeholder="例如：仵作之死" autofocus>
+  <!-- ================================================================ -->
+  <!-- Tab: 编译叙事内核 -->
+  <!-- ================================================================ -->
+  <div id="tabNovel" class="tab-content">
+
+    <!-- 输入主题 -->
+    <section class="card" id="sectionInput">
+      <h2>编译叙事内核</h2>
+      <p class="hint">输入一个主题，AI 将拆解为人物、事件、预言三大叙事锚点。</p>
+
+      <div class="input-group">
+        <div class="field">
+          <label>故事主题</label>
+          <input id="themeInput" placeholder="例如：仵作之死" autofocus>
+        </div>
+        <button id="btnCompile" onclick="doCompile()">生成内核</button>
       </div>
-      <div class="field short">
-        <label>目标字数</label>
-        <input id="wordCount" type="number" value="8000" min="2000" max="20000" step="500">
+
+      <div id="compileStatus" class="status"></div>
+    </section>
+
+    <!-- 内核确认 -->
+    <section class="card" id="sectionKernel" style="display:none;">
+      <h2 id="resultTheme"></h2>
+      <div id="kernelContent" class="kernel-text"></div>
+      <div class="kernel-actions">
+        <button id="btnConfirmKernel" onclick="confirmKernel()">确认内核，开始写小说 →</button>
       </div>
-      <button id="btnCompile" onclick="doCompile()">生成内核</button>
-    </div>
+    </section>
 
-    <div id="compileStatus" class="status"></div>
-  </section>
+    <!-- 小说生成 -->
+    <section class="card" id="sectionNovel" style="display:none;">
+      <h2>四阶段小说生成</h2>
+      <p class="hint">起 · 承 · 转 · 合 — 每个阶段生成完成后自动展开</p>
+      <div id="novelProgress" class="novel-progress">
+        <span class="stage-dot" data-stage="起">起</span>
+        <span class="stage-dot" data-stage="承">承</span>
+        <span class="stage-dot" data-stage="转">转</span>
+        <span class="stage-dot" data-stage="合">合</span>
+      </div>
+      <div id="novelStages"></div>
+      <div id="novelStatus" class="status"></div>
+    </section>
 
-  <!-- Result -->
-  <section class="card" id="sectionResult" style="display:none;">
-    <div class="step-badge done">✓</div>
-    <h2 id="resultTheme"></h2>
-    <div id="kernelContent" class="kernel-text"></div>
-    <div class="next-step">
-      <p>下一步：四阶段小说生成 <span class="dim">(起·承·转·合)</span></p>
-      <button class="btn-outline" disabled>即将开放</button>
-    </div>
-  </section>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- Tab: Edge TTS 配音 -->
+  <!-- ================================================================ -->
+  <div id="tabTTS" class="tab-content" style="display:none;">
+
+    <section class="card">
+      <h2>Edge TTS 配音</h2>
+      <p class="hint">可从小说导入、上传 TXT 文件、或手动粘贴文本</p>
+
+      <!-- 文本来源切换 -->
+      <div class="tts-source-tabs">
+        <button class="tts-source-tab active" onclick="switchTTSSource('novel')">📖 从小说导入</button>
+        <button class="tts-source-tab" onclick="switchTTSSource('file')">📁 上传 TXT</button>
+        <button class="tts-source-tab" onclick="switchTTSSource('paste')">✏️ 手动粘贴</button>
+      </div>
+
+      <!-- 从小说导入：提示文字 -->
+      <div id="ttsHintNovel" class="tts-hint">小说生成后点击「📖 从小说导入」即可自动填入全文</div>
+
+      <!-- 上传文件区 -->
+      <div id="ttsUploadZone" style="display:none;">
+        <label class="tts-upload-label" for="ttsFileInput">
+          <span>📁 点击选择 TXT 文件</span>
+          <span class="tts-upload-sub">支持 .txt 编码 UTF-8</span>
+        </label>
+        <input type="file" id="ttsFileInput" accept=".txt" style="display:none;" onchange="handleTTSFile(this)">
+      </div>
+
+      <!-- 配音文本 -->
+      <div class="tts-text-area">
+        <textarea id="ttsText" placeholder="请选择文本来源：从小说导入 / 上传 TXT / 手动粘贴..."></textarea>
+        <div class="tts-char-count"><span id="ttsCharCount">0</span> 字</div>
+      </div>
+
+      <!-- 配音设置 -->
+      <div class="tts-settings">
+        <div class="field">
+          <label>配音声音</label>
+          <select id="ttsVoice">
+            <option value="zh-CN-XiaoxiaoNeural">晓晓 · 女声 (推荐)</option>
+            <option value="zh-CN-YunxiNeural">云希 · 男声</option>
+            <option value="zh-CN-YunjianNeural">云健 · 男声</option>
+            <option value="zh-CN-XiaoyiNeural">晓伊 · 女声</option>
+            <option value="zh-CN-YunyangNeural">云扬 · 男声</option>
+            <option value="zh-CN-XiaochenNeural">晓辰 · 女声</option>
+            <option value="zh-CN-XiaohanNeural">晓涵 · 女声</option>
+            <option value="zh-CN-XiaomoNeural">晓墨 · 女声</option>
+            <option value="zh-CN-XiaoruiNeural">晓睿 · 女声</option>
+            <option value="zh-CN-YunfengNeural">云枫 · 男声</option>
+          </select>
+        </div>
+        <div class="field short">
+          <label>语速</label>
+          <select id="ttsRate">
+            <option value="-30%">-30% 慢速</option>
+            <option value="-20%">-20%</option>
+            <option value="-10%">-10%</option>
+            <option value="+0%" selected>正常</option>
+            <option value="+10%">+10%</option>
+            <option value="+20%">+20%</option>
+            <option value="+30%">+30% 快速</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 生成按钮 -->
+      <button class="btn-primary tts-btn" id="btnGenTTS" onclick="doGenTTS()">🎙️ 生成配音</button>
+      <div class="status" id="ttsStatus"></div>
+
+      <!-- 结果区 -->
+      <div id="ttsResult" style="display:none;">
+        <audio id="ttsAudio" controls style="width:100%;height:36px;border-radius:8px;margin-top:12px;"></audio>
+        <div class="tts-downloads">
+          <a id="ttsDownloadAudio" href="#" class="btn-outline" download>⬇ 下载 MP3</a>
+          <a id="ttsDownloadSrt" href="#" class="btn-outline" download>⬇ 下载字幕 SRT</a>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- Tab: 视频制作 -->
+  <!-- ================================================================ -->
+  <div id="tabVideo" class="tab-content" style="display:none;">
+
+    <section class="card">
+      <h2>视频制作</h2>
+      <p class="hint">从 TTS 配音产物或本地文件合成带字幕的视频</p>
+
+      <!-- 音频源 -->
+      <div class="video-source-group">
+        <div class="field" style="flex:2;">
+          <label>音频源</label>
+          <select id="videoAudioSource" onchange="switchVideoAudioSource()">
+            <option value="tts">🎙️ 从 TTS 配音获取</option>
+            <option value="upload">📁 上传 MP3 文件</option>
+          </select>
+        </div>
+        <div class="field" id="videoAudioUploadField" style="display:none;">
+          <label>&nbsp;</label>
+          <input type="file" id="videoAudioFile" accept=".mp3">
+        </div>
+      </div>
+
+      <!-- SRT 字幕源 -->
+      <div class="video-source-group">
+        <div class="field" style="flex:2;">
+          <label>字幕源</label>
+          <select id="videoSrtSource" onchange="switchVideoSrtSource()">
+            <option value="tts">📝 从 TTS 配音获取</option>
+            <option value="upload">📁 上传 SRT 文件</option>
+            <option value="none">🚫 不加字幕</option>
+          </select>
+        </div>
+        <div class="field" id="videoSrtUploadField" style="display:none;">
+          <label>&nbsp;</label>
+          <input type="file" id="videoSrtFile" accept=".srt">
+        </div>
+      </div>
+
+      <!-- BGM -->
+      <div class="video-source-group">
+        <div class="field" style="flex:1;">
+          <label>BGM（可选）</label>
+          <div class="checkbox-row">
+            <input type="checkbox" id="videoBgmToggle" onchange="toggleVideoBgm()">
+            <label for="videoBgmToggle" class="checkbox-label">混入背景音乐</label>
+          </div>
+        </div>
+        <div class="field" id="videoBgmUploadField" style="display:none;">
+          <label>&nbsp;</label>
+          <input type="file" id="videoBgmFile" accept=".mp3,.wav">
+        </div>
+      </div>
+
+      <!-- 水印 -->
+      <div class="video-source-group">
+        <div class="field" style="flex:1;">
+          <label>片尾水印</label>
+          <div class="checkbox-row">
+            <input type="checkbox" id="videoWatermarkToggle" onchange="toggleVideoWatermark()">
+            <label for="videoWatermarkToggle" class="checkbox-label">添加水印署名</label>
+          </div>
+        </div>
+        <div class="field" id="videoWatermarkField" style="display:none;flex:2;">
+          <label>署名文字</label>
+          <input type="text" id="videoWatermarkText" placeholder="@作者" maxlength="30">
+        </div>
+      </div>
+
+      <!-- 素材信息 -->
+      <div class="video-asset-info">
+        <span>📂 背景视频素材：</span>
+        <span id="videoClipCount" class="video-asset-count">检测中…</span>
+      </div>
+
+      <!-- 生成按钮 -->
+      <button class="btn-primary tts-btn" id="btnGenVideo" onclick="doGenVideo()">🎬 生成视频</button>
+      <div class="status" id="videoStatus"></div>
+
+      <!-- 结果区 -->
+      <div id="videoResult" style="display:none;">
+        <video id="videoPlayer" controls style="width:100%;border-radius:8px;margin-top:12px;background:#000;"></video>
+        <div class="tts-downloads">
+          <a id="videoDownload" href="#" class="btn-outline" download>⬇ 下载视频 MP4</a>
+        </div>
+      </div>
+    </section>
+
+  </div>
 
   <!-- Error -->
   <section class="card card-error" id="sectionError" style="display:none;">
@@ -57,6 +251,6 @@
 
 </div>
 
-<script src="/static/js/app.js?v=2"></script>
+<script src="/static/js/app.js?v=3"></script>
 </body>
 </html>

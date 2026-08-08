@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from pydantic import PositiveFloat, field_validator
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -24,8 +24,8 @@ class Settings(BaseSettings):
     OUTPUT_DIR: Path = Path("output")
 
     # ── 小说生成 (DeepSeek) ────────────────────────────────
-    DEEPSEEK_API_KEY: str  # 必填
-    DEEPSEEK_BASE_URL: str  # 必填
+    DEEPSEEK_API_KEY: str  
+    DEEPSEEK_BASE_URL: str  
 
     DEEPSEEK_MODEL: str = "deepseek-v4-pro"
 
@@ -36,37 +36,8 @@ class Settings(BaseSettings):
     DEEPSEEK_PRESENCE_PENALTY: float = 0.4
     DEEPSEEK_FREQUENCY_PENALTY: float = 0.2
 
-    # ── TTS ────────────────────────────────────────────────
-    TENCENT_SECRET_ID: str  # 必填
-    TENCENT_SECRET_KEY: str  # 必填
-    TENCENT_REGION: str = "ap-guangzhou"
-
-    TTS_VOICE_ID: int = 601000
-    TTS_SPEED: int = 0
-    TTS_VOLUME: int = 5
-    TTS_SAMPLE_RATE: int = 24000
-    TTS_CODEC: str = "mp3"
-
-    BGM_VOLUME_RATIO: PositiveFloat = 0.3
-
-    # ── 文本分割 ───────────────────────────────────────────
-    MAX_SEGMENT_LENGTH: int = 140
-    MIN_HOPE_LENGTH: int = 55
-    MIN_FORCE_MERGE_LENGTH: int = 35
-
-    SLEEP_BETWEEN_REQUESTS: PositiveFloat = 0.2
-
-    STRONG_END: str = r"[。？！…～]"
-    MEDIUM_SPLIT: str = r"[；：—━]"
-    WEAK_SPLIT: str = r"[，、]"
-
-    # ── 爬虫 / 字幕 ────────────────────────────────────────
-    TARGET_URL: str  # 必填 — TurboScribe 地址
-    BROWSER_PATH: Path  # 必填 — Chromium/Edge 可执行文件路径
-
-    HEADLESS: bool = False
-    TIMEOUT: int = 120
-    POLL_INTERVAL: float = 1.0
+    # ── 视频制作 ───────────────────────────────────────────
+    BGM_VOLUME_RATIO: float = 0.3
 
     # ── 水印 ────────────────────────────────────────────────
     WATERMARK_AUTHOR: str = "@作者"
@@ -75,20 +46,6 @@ class Settings(BaseSettings):
     # ════════════════════════════════════════════════════════
     #  字段校验
     # ════════════════════════════════════════════════════════
-
-    @field_validator("TTS_SPEED")
-    @classmethod
-    def _validate_speed(cls, v: int) -> int:
-        if not -2 <= v <= 6:
-            raise ValueError("TTS_SPEED must be between -2 and 6")
-        return v
-
-    @field_validator("TTS_VOLUME")
-    @classmethod
-    def _validate_volume(cls, v: int) -> int:
-        if not 0 <= v <= 10:
-            raise ValueError("TTS_VOLUME must be between 0 and 10")
-        return v
 
     @field_validator("BGM_VOLUME_RATIO")
     @classmethod

@@ -78,8 +78,19 @@ class VideoPipeline:
 
     # ── 主流程 ────────────────────────────────────────
 
-    def assemble(self, start_index: int = 0) -> Path:
-        audio_path = self._paths.final_mixed_audio
+    def assemble(
+        self,
+        audio_path: Path,
+        output_path: Path,
+        start_index: int = 0,
+    ) -> Path:
+        """拼接背景片段并叠加音频。
+
+        Args:
+            audio_path: 音频文件路径（mp3）。
+            output_path: 输出 mp4 路径。
+            start_index: 从第几个背景片段开始（0=第一个）。
+        """
         if not audio_path.exists():
             raise FileNotFoundError(f"音频未找到: {audio_path}")
 
@@ -106,20 +117,19 @@ class VideoPipeline:
             final = final.with_audio(audio)
 
             threads = max(1, multiprocessing.cpu_count() // 2)
-            output = self._paths.video_with_bgm
-            output.parent.mkdir(parents=True, exist_ok=True)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
 
             logger.info("正在导出视频 (%d 线程) …", threads)
             final.write_videofile(
-                str(output),
+                str(output_path),
                 codec="libx264",
                 audio_codec="aac",
                 fps=fps,
                 preset="ultrafast",
                 threads=threads,
             )
-            logger.info("视频已保存 → %s", output)
-            return output
+            logger.info("视频已保存 → %s", output_path)
+            return output_path
 
         finally:
             if audio:

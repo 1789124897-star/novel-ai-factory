@@ -4,7 +4,7 @@ import logging
 import math
 import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from ..core.config import Settings
@@ -67,50 +67,61 @@ class Watermark:
 
     # ── 主入口 ────────────────────────────────────────
 
-    def apply(self, theme: str = "") -> Path:
-        input_v = self._paths.video_with_srt
-        output_v = self._paths.video_with_watermark
+    def apply(
+        self,
+        input_path: Path,
+        output_path: Path,
+        *,
+        author: str = "",
+        theme: str = "",
+        audio_path: Optional[Path] = None,
+    ) -> Path:
+        """叠加多层文字水印。
 
-        if not input_v.exists():
-            raise FileNotFoundError(f"输入视频未找到: {input_v}")
+        Args:
+            input_path: 输入视频路径。
+            output_path: 输出视频路径。
+            author: 署名文字（空则从配置读取）。
+            theme: 书名标题（空则从路径推断）。
+            audio_path: 用于计算时长的音频（空则跳过时长行）。
+        """
+        if not input_path.exists():
+            raise FileNotFoundError(f"输入视频未找到: {input_path}")
 
+        author = author or self._settings.WATERMARK_AUTHOR
         if not theme:
             theme = self._paths.theme
-        minutes = self._audio_duration_minutes(self._paths.merged_audio)
-        author = self._settings.WATERMARK_AUTHOR
 
+        # 书名 + 作者
         filters = [
             self._drawtext(
                 f"《 {theme} 》", 90, "0x791E1E", "(w-text_w)/2", "80"
             ),
-            self._drawtext(
+        ]
+
+        # 时长行（需要音频）
+        if audio_path and audio_path.exists():
+            minutes = self._audio_duration_minutes(audio_path)
+            filters.append(self._drawtext(
                 f"全文{minutes}分钟", 60, "0x000000", "(w-text_w)/2", "180"
-            ),
-            self._drawtext(
-                "已完结", 60, "0x000000", "(w-text_w)/2", "250"
-            ),
+            ))
+
+        filters.extend([
+            self._drawtext("已完结", 60, "0x000000", "(w-text_w)/2", "250"),
             self._drawtext(
                 "小说纯属虚构 请勿模仿",
-                50,
-                "0x000000",
-                "(w-text_w)/2",
-                "(h-80-text_h)",
+                50, "0x000000", "(w-text_w)/2", "(h-80-text_h)",
             ),
             self._drawtext(
-                author,
-                50,
-                "0x87CEFA",
-                "(w-40-text_w)",
-                "(h-200-text_h)",
-                alpha=0.5,
+                author, 50, "0x87CEFA", "(w-40-text_w)", "(h-200-text_h)", alpha=0.5,
             ),
-        ]
+        ])
 
         filter_chain = ",".join(filters)
         cmd = [
             "ffmpeg",
             "-i",
-            str(input_v),
+            str(input_path),
             "-vf",
             filter_chain,
             "-c:v",
@@ -122,7 +133,7 @@ class Watermark:
             "-c:a",
             "copy",
             "-y",
-            str(output_v),
+            str(output_path),
         ]
 
         logger.info("正在添加水印 …")
@@ -134,5 +145,5 @@ class Watermark:
             raise subprocess.CalledProcessError(
                 result.returncode, cmd, result.stdout, result.stderr
             )
-        logger.info("已加水印 → %s", output_v)
-        return output_v
+        logger.info("已加水印 → %s", output_path)
+        return output_path
