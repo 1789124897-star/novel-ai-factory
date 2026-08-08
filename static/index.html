@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小说AI工厂</title>
+<link rel="stylesheet" href="/static/css/style.css?v=2">
+</head>
+<body>
+
+<div class="page">
+
+  <!-- Header -->
+  <header class="header">
+    <h1>小说AI工厂</h1>
+    <p class="subtitle">从一句话主题，到带字幕的完整视频</p>
+  </header>
+
+  <!-- Step 1: 叙事内核 -->
+  <section class="card" id="sectionInput">
+    <div class="step-badge">第一步</div>
+    <h2>编译叙事内核</h2>
+    <p class="hint">输入一个主题，AI 将拆解为人物、事件、预言三大叙事锚点。</p>
+
+    <div class="input-group">
+      <div class="field">
+        <label>故事主题</label>
+        <input id="themeInput" placeholder="例如：仵作之死" autofocus>
+      </div>
+      <div class="field short">
+        <label>目标字数</label>
+        <input id="wordCount" type="number" value="8000" min="2000" max="20000" step="500">
+      </div>
+      <button id="btnCompile" onclick="doCompile()">生成内核</button>
+    </div>
+
+    <div id="compileStatus" class="status"></div>
+  </section>
+
+  <!-- Result -->
+  <section class="card" id="sectionResult" style="display:none;">
+    <div class="step-badge done">✓</div>
+    <h2 id="resultTheme"></h2>
+    <div id="kernelContent" class="kernel-text"></div>
+    <div class="next-step">
+      <p>下一步：四阶段小说生成 <span class="dim">(起·承·转·合)</span></p>
+      <button class="btn-outline" disabled>即将开放</button>
+    </div>
+  </section>
+
+  <!-- Error -->
+  <section class="card card-error" id="sectionError" style="display:none;">
+    <h2>❌ 生成失败</h2>
+    <p id="errorMsg"></p>
+    <button class="btn-outline" onclick="resetUI()">重新开始</button>
+  </section>
+
+</div>
+
+<script src="/static/js/app.js?v=2"></script>
+</body>
+</html>

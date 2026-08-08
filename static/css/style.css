@@ -1,0 +1,218 @@
+:root {
+  --bg: #faf8f5;
+  --card: #fffefb;
+  --border: #e8e4db;
+  --text: #2c2416;
+  --text2: #7a7264;
+  --text3: #b8b0a0;
+  --accent: #8b4513;
+  --accent2: #a0522d;
+  --ink: #1a365d;
+  --green: #4a7c59;
+  --red: #c44;
+  --radius: 10px;
+  --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.7;
+}
+
+/* ── page ──────────────────────────────────────────────── */
+
+.page {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 48px 20px 80px;
+}
+
+/* ── header ─────────────────────────────────────────────── */
+
+.header {
+  text-align: center;
+  padding: 40px 0 32px;
+}
+.header h1 {
+  font-family: "Noto Serif SC", "SimSun", "STSong", serif;
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 2px;
+}
+.header .subtitle {
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--text2);
+  letter-spacing: 1px;
+}
+
+/* ── card ───────────────────────────────────────────────── */
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 28px 32px;
+  margin-bottom: 24px;
+  position: relative;
+}
+.card h2 {
+  font-family: "Noto Serif SC", "SimSun", serif;
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--text);
+}
+.card .hint {
+  font-size: 13px;
+  color: var(--text2);
+  margin-bottom: 20px;
+}
+
+.step-badge {
+  position: absolute;
+  top: -12px;
+  left: 24px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 14px;
+  border-radius: 12px;
+  letter-spacing: 1px;
+}
+.step-badge.done { background: var(--green); }
+
+/* ── input group ────────────────────────────────────────── */
+
+.input-group {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 140px;
+}
+.field.short { flex: 0 0 100px; }
+.field label {
+  font-size: 11px;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+.field select, .field input {
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color .15s;
+}
+.field select:focus, .field input:focus { border-color: var(--accent); }
+
+#btnCompile {
+  padding: 10px 28px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  letter-spacing: 1px;
+  transition: background .15s;
+}
+#btnCompile:hover { background: var(--accent2); }
+#btnCompile:disabled { background: var(--text3); cursor: not-allowed; }
+
+/* ── status ─────────────────────────────────────────────── */
+
+.status {
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--text2);
+  text-align: center;
+  min-height: 20px;
+}
+.status.loading { color: var(--accent); }
+.status.error { color: var(--red); }
+
+/* ── kernel result ──────────────────────────────────────── */
+
+.kernel-text {
+  white-space: pre-wrap;
+  font-family: "Noto Serif SC", "SimSun", "STSong", serif;
+  font-size: 15px;
+  line-height: 2;
+  color: var(--text);
+  background: var(--bg);
+  padding: 24px 28px;
+  border-radius: 8px;
+  max-height: 55vh;
+  overflow-y: auto;
+  margin-top: 16px;
+  border-left: 3px solid var(--accent);
+}
+
+.result-meta {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text3);
+}
+
+/* ── next step ──────────────────────────────────────────── */
+
+.next-step {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+.next-step p {
+  font-size: 14px;
+  color: var(--text2);
+  margin-bottom: 10px;
+}
+.next-step .dim { color: var(--text3); }
+
+.btn-outline {
+  padding: 8px 24px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text3);
+  font-size: 13px;
+  cursor: not-allowed;
+  font-family: inherit;
+}
+
+/* ── error card ─────────────────────────────────────────── */
+
+.card-error { border-color: var(--red); }
+.card-error h2 { color: var(--red); }
+.card-error p { color: var(--text2); font-size: 14px; margin: 8px 0 14px; }
+.card-error .btn-outline { color: var(--accent); border-color: var(--accent); cursor: pointer; }
+.card-error .btn-outline:hover { background: var(--accent); color: #fff; }
+
+/* ── scrollbar ──────────────────────────────────────────── */
+
+.kernel-text::-webkit-scrollbar { width: 6px; }
+.kernel-text::-webkit-scrollbar-track { background: transparent; }
+.kernel-text::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
