@@ -5,22 +5,23 @@ from typing import Optional
 
 from app.core.config import settings
 from app.core.paths import PathConfig
-from app.services.novel_gen_service import NovelPrompt, NovelGenerator
+from app.services.novel_gen_service import NovelPrompt, NovelGenerator, STAGES
 from app.services.task_manager import TaskManager
 
 logger = logging.getLogger(__name__)
 
 _task_manager = TaskManager()
 
+_STAGE_NAMES = [s["name"] for s in STAGES]
+
 
 def start_generation(theme: str, kernel: str, target_words: int = 8000) -> str:
     """启动后台小说生成任务，返回 task_id。"""
     task_id = _task_manager.start(
         _do_generation,
-        theme, kernel,
+        theme, 
+        kernel,
         target_words,
-        current_stage="起",
-        stages={},
     )
     logger.info("小说生成任务已启动 task_id=%s theme=%s", task_id, theme)
     return task_id
@@ -37,8 +38,12 @@ def _do_generation(task_id: str, theme: str, kernel: str, target_words: int) -> 
 
     def on_stage(name: str, content: str) -> None:
         stages[name] = content
-        _task_manager.update(task_id, current_stage=name, stages=dict(stages))
+        idx = _STAGE_NAMES.index(name)
+        next_stage = _STAGE_NAMES[idx + 1] if idx + 1 < len(_STAGE_NAMES) else "完成"
+        _task_manager.update(task_id, current_stage=next_stage, stages=dict(stages))
         logger.info("阶段 [%s] 完成，字数=%d", name, len(content))
+
+    _task_manager.update(task_id, current_stage="起")
 
     paths = PathConfig.from_settings(settings, theme=theme)
     prompt = NovelPrompt(theme, paths, kernel)

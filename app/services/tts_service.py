@@ -71,11 +71,17 @@ async def _synthesize(task_id: str, text: str, voice: str, rate: str) -> dict:
 
 # ── SRT 生成 ─────────────────────────────────────────────────
 
-_PUNCTUATION = {"。", "！", "？", "!", "?", "，", ",", "、", "：", "；", ".", "~", "～", "…"}
-_MAX_CHARS = 12
-_CLOSED_BREAKS = {"。", "！", "？", "!", "?"}
+# 断句标点（遇到就切）
+_BREAK_CHARS = {"。", "！", "？", "!", "?", "，", ",", "：", "；"}
+# 从句标点（切句后优先向前合并）
 _OPEN_BREAKS = {"，", ","}
-_BREAKS = _CLOSED_BREAKS | _OPEN_BREAKS
+# 从句标点（强制分句，不合并）
+_CLOSED_BREAKS = {"。", "！", "？", "!", "?"}
+# 显示时删除的字符（句末标点 + 装饰符）
+_STRIP_CHARS = {"。", "！", "？", "!", "?", "、", "：", "；", ".", "~", "～", "…"}
+
+_MAX_CHARS = 14
+_MERGE_MAX_CHARS = 14
 
 
 def _write_srt(boundaries: list[dict], output_path: Path) -> float:
@@ -100,9 +106,9 @@ def _write_srt(boundaries: list[dict], output_path: Path) -> float:
     buffer: list[dict] = []
     for word in words:
         buffer.append(word)
-        stripped = sum(1 for x in buffer if x["char"] not in _PUNCTUATION)
-        if word["char"] in _BREAKS or stripped >= _MAX_CHARS:
-            break_char = word["char"] if word["char"] in _BREAKS else None
+        stripped = sum(1 for x in buffer if x["char"] not in _STRIP_CHARS)
+        if word["char"] in _BREAK_CHARS or stripped >= _MAX_CHARS:
+            break_char = word["char"] if word["char"] in _BREAK_CHARS else None
             chunks.append(_flush(buffer, break_char))
             buffer = []
     if buffer:
@@ -115,7 +121,7 @@ def _write_srt(boundaries: list[dict], output_path: Path) -> float:
             merged
             and chunk.get("break_char") in _OPEN_BREAKS
             and merged[-1].get("break_char") not in _CLOSED_BREAKS
-            and len(merged[-1]["text"]) + len(chunk["text"]) <= _MAX_CHARS
+            and len(merged[-1]["text"]) + len(chunk["text"]) <= _MERGE_MAX_CHARS
         ):
             merged[-1]["end"] = chunk["end"]
             merged[-1]["text"] += chunk["text"]
@@ -146,7 +152,8 @@ def _flush(buffer: list[dict], break_char: Optional[str]) -> dict:
     start = buffer[0]["start"]
     last = buffer[-1]
     end = last["start"] + last["dur"]
-    text = "".join(word["char"] for word in buffer if word["char"] not in _PUNCTUATION)
+    text = "".join(word["char"] for word in buffer if word["char"] not in _STRIP_CHARS)
+    text = text.strip("，,")
     return {"start": start, "end": end, "text": text, "break_char": break_char}
 
 

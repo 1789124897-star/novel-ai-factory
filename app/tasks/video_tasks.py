@@ -40,7 +40,6 @@ def start_task(
         _do_video,
         theme, audio_source, audio_tts_task_id,
         srt_source, srt_tts_task_id, bgm_path, watermark_text,
-        step="初始化",
     )
     logger.info("视频任务已启动 task_id=%s theme=%s", task_id, theme)
     return task_id

@@ -225,25 +225,12 @@ function switchTTSSource(mode) {
   document.querySelectorAll(".tts-source-tab").forEach(t => t.classList.remove("active"));
   event.target.classList.add("active");
 
-  // 切换提示 / 上传区显示
   document.getElementById("ttsHintNovel").style.display = mode === "novel" ? "" : "none";
-  document.getElementById("ttsUploadZone").style.display = mode === "file" ? "" : "none";
 
   if (mode === "novel") {
     document.getElementById("ttsText").value = _novelFullText;
   }
   updateTTSCharCount();
-}
-
-function handleTTSFile(input) {
-  const file = input.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    document.getElementById("ttsText").value = e.target.result;
-    updateTTSCharCount();
-  };
-  reader.readAsText(file, "UTF-8");
 }
 
 function updateTTSCharCount() {

@@ -77,30 +77,20 @@
 
     <section class="card">
       <h2>Edge TTS 配音</h2>
-      <p class="hint">可从小说导入、上传 TXT 文件、或手动粘贴文本</p>
+      <p class="hint">可从小说导入或手动粘贴文本</p>
 
       <!-- 文本来源切换 -->
       <div class="tts-source-tabs">
         <button class="tts-source-tab active" onclick="switchTTSSource('novel')">📖 从小说导入</button>
-        <button class="tts-source-tab" onclick="switchTTSSource('file')">📁 上传 TXT</button>
         <button class="tts-source-tab" onclick="switchTTSSource('paste')">✏️ 手动粘贴</button>
       </div>
 
       <!-- 从小说导入：提示文字 -->
       <div id="ttsHintNovel" class="tts-hint">小说生成后点击「📖 从小说导入」即可自动填入全文</div>
 
-      <!-- 上传文件区 -->
-      <div id="ttsUploadZone" style="display:none;">
-        <label class="tts-upload-label" for="ttsFileInput">
-          <span>📁 点击选择 TXT 文件</span>
-          <span class="tts-upload-sub">支持 .txt 编码 UTF-8</span>
-        </label>
-        <input type="file" id="ttsFileInput" accept=".txt" style="display:none;" onchange="handleTTSFile(this)">
-      </div>
-
       <!-- 配音文本 -->
       <div class="tts-text-area">
-        <textarea id="ttsText" placeholder="请选择文本来源：从小说导入 / 上传 TXT / 手动粘贴..."></textarea>
+        <textarea id="ttsText" placeholder="请选择文本来源：从小说导入 / 手动粘贴..."></textarea>
         <div class="tts-char-count"><span id="ttsCharCount">0</span> 字</div>
       </div>
 
