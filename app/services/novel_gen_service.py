@@ -1,9 +1,8 @@
-"""分阶段小说生成服务 — prompt 构建 + 四阶段生成引擎 + 异步任务调度。
+"""分阶段小说生成服务 — prompt 构建 + 四阶段生成引擎。
 
 核心算法：
 1. 以叙事内核为锚点，注入基础 prompt 模板，组装每阶段提示词。
 2. 每阶段调用 LLM 一次，传入所有已生成的前文作为上下文。
-3. 后台线程运行，通过回调实时更新任务状态，前端轮询获取进度。
 """
 
 import logging
@@ -14,9 +13,8 @@ from typing import Optional
 
 import requests
 
-from app.core.config import settings, Settings
+from app.core.config import Settings
 from app.core.paths import PathConfig
-from app.services.task_manager import TaskManager
 
 logger = logging.getLogger(__name__)
 
@@ -64,10 +62,7 @@ _SYSTEM_PROMPT = (
 # ── Prompt 构建器 ────────────────────────────────────────────
 
 class NovelPrompt:
-    """组装每阶段 prompt，以不可变叙事内核为锚点。
-
-    内核在每阶段均先于基础 prompt 注入，确保 LLM 不偏离原始故事 DNA。
-    """
+    """组装每阶段 prompt，以不可变叙事内核为锚点。"""
 
     def __init__(self, theme: str, paths: PathConfig, kernel: str):
         self.theme = theme
@@ -79,41 +74,33 @@ class NovelPrompt:
         stage_info: dict,
         previous_full_text: str = "",
     ) -> str:
-        """构建单阶段完整 prompt。
-
-        Args:
-            stage_info: dict，包含 ``name``、``chapter_range``、``word_hint``、``task``。
-            previous_full_text: 之前所有阶段的小说全文，用于上下文衔接。
-        """
-        word_range = stage_info["word_hint"]
-        prompt = (
-            f"【不可违背的叙事内核锚点】\n{self.kernel_text}\n\n"
-            f"所有情节、人物动机、预言、核心事件、信物、空间异常等必须严格与以上内核一致，"
-            f"不得任何改动或偏离。\n\n"
-            f"{self._base.format(theme=self.theme)}\n\n"
-            f"【当前写作阶段】{stage_info['name']}\n"
-            f"【章节范围】{stage_info['chapter_range']}\n"
-            f"【本阶段严格字数要求】必须控制在{word_range}字（纯中文字符，不计标点空格）。\n"
-            f"【核心任务】{stage_info['task']}\n\n"
-        )
+        """构建单阶段完整 prompt。"""
+        prompt_parts = [
+            f"【不可违背的叙事内核锚点】\n{self.kernel_text}",
+            "所有情节、人物动机、预言、核心事件、信物、空间异常等必须严格与以上内核一致，不得任何改动或偏离。",
+            self._base.format(theme=self.theme),
+            f"【当前写作阶段】{stage_info['name']}",
+            f"【章节范围】{stage_info['chapter_range']}",
+            f"【本阶段严格字数要求】必须控制在{stage_info['word_hint']}字（纯中文字符，不计标点空格）。",
+            f"【核心任务】{stage_info['task']}",
+        ]
 
         if previous_full_text:
-            prompt += (
-                f"【已生成的小说全文】\n{previous_full_text}\n\n"
-                f"请以上文为基础无缝续写本阶段。注意回收前文埋下的伏笔，"
-                f"保持人物性格、对白风格和叙事节奏一致。\n"
-            )
+            prompt_parts += [
+                f"【已生成的小说全文】\n{previous_full_text}",
+                "请以上文为基础无缝续写本阶段。注意回收前文埋下的伏笔，保持人物性格、对白风格和叙事节奏一致。",
+            ]
         else:
-            prompt += "请开始本阶段写作。\n"
+            prompt_parts.append("请开始本阶段写作。")
 
-        prompt += (
-            "\n严格要求：\n"
+        prompt_parts.append(
+            "严格要求：\n"
             "- 直接输出小说正文，不要任何解释、说明、章节标题或统计。\n"
             "- 保持文学性、压抑氛围、不可靠叙事。\n"
             "- 结尾不要强行收束，为后续阶段留余地（除非是最终阶段）。\n"
-            "- 必须满足字数硬性要求！\n"
+            "- 必须满足字数硬性要求！"
         )
-        return prompt
+        return "\n\n".join(prompt_parts)
 
     @staticmethod
     def _load_base_prompt(paths: PathConfig) -> str:
@@ -141,21 +128,8 @@ class NovelGenerator:
         self.prompt = prompt
         self.paths = paths
 
-    def _api_post(self, payload: dict) -> dict:
-        resp = requests.post(
-            self.settings.DEEPSEEK_BASE_URL,
-            headers={
-                "Authorization": f"Bearer {self.settings.DEEPSEEK_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-            timeout=180,
-        )
-        resp.raise_for_status()
-        return resp.json()
-
     def _single_generate(self, prompt_text: str, max_retries: int = 3) -> str:
-        """调用 LLM API，带指数退避重试。每次独立请求，不携带历史。"""
+
         for attempt in range(max_retries):
             try:
                 payload = {
@@ -167,8 +141,17 @@ class NovelGenerator:
                     "temperature": self.settings.DEEPSEEK_TEMPERATURE,
                     "max_tokens": self.settings.DEEPSEEK_MAX_TOKENS,
                 }
-                data = self._api_post(payload)
-                return data["choices"][0]["message"]["content"].strip()
+                response = requests.post(
+                    self.settings.DEEPSEEK_BASE_URL,
+                    headers={
+                        "Authorization": f"Bearer {self.settings.DEEPSEEK_API_KEY}",
+                        "Content-Type": "application/json",
+                    },
+                    json=payload,
+                    timeout=180,
+                )
+                response.raise_for_status()
+                return response.json()["choices"][0]["message"]["content"].strip()
             except Exception:
                 logger.warning("LLM 调用第 %d/%d 次失败", attempt + 1, max_retries)
                 if attempt < max_retries - 1:
@@ -183,12 +166,8 @@ class NovelGenerator:
         target_words: int = 8000,
         on_stage_complete: Optional[Callable[[str, str], None]] = None,
     ) -> str:
-        """运行完整四阶段生成流程。
+        """完整四阶段生成流程。"""
 
-        Args:
-            target_words: 近似总字数目标（传递到 prompt 中作为提示）。
-            on_stage_complete: 每阶段完成后的回调 (stage_name, content)。
-        """
         logger.info("开始分阶段小说生成（目标 ~%d 字）", target_words)
 
         full_content = ""
@@ -207,42 +186,3 @@ class NovelGenerator:
 
         logger.info("所有阶段完成 — 共 %d 字", len(full_content))
         return full_content
-
-
-# ── 异步任务管理 ─────────────────────────────────────────────
-
-_task_manager = TaskManager()
-
-
-def start_generation(theme: str, kernel: str, target_words: int = 8000) -> str:
-    """启动后台小说生成任务，返回 task_id。"""
-    task_id = _task_manager.start(
-        _do_generation, theme, kernel, target_words,
-        current_stage="起",
-        stages={},
-    )
-    logger.info("小说生成任务已启动 task_id=%s theme=%s", task_id, theme)
-    return task_id
-
-
-def get_task_status(task_id: str) -> Optional[dict]:
-    """查询任务状态。"""
-    return _task_manager.get(task_id)
-
-
-def _do_generation(task_id: str, theme: str, kernel: str, target_words: int) -> None:
-    """后台执行四阶段小说生成，每阶段完成实时更新状态。"""
-    stages: dict[str, str] = {}
-
-    def on_stage(name: str, content: str) -> None:
-        stages[name] = content
-        _task_manager.update(task_id, current_stage=name, stages=dict(stages))
-        logger.info("阶段 [%s] 完成，字数=%d", name, len(content))
-
-    paths = PathConfig.from_settings(settings, theme=theme)
-    prompt = NovelPrompt(theme, paths, kernel)
-    generator = NovelGenerator(prompt, paths, settings)
-    generator.generate_novel(
-        target_words=target_words,
-        on_stage_complete=on_stage,
-    )

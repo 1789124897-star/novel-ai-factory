@@ -7,6 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, Form, HTTPException, UploadFile
 
 from app.services import video_service
+from app.tasks import video_tasks
 
 router = APIRouter(prefix="/api/video", tags=["Video"])
 
@@ -55,7 +56,7 @@ async def start_video(
         bgm_path = str(dest)
 
     try:
-        task_id = video_service.start_task(
+        task_id = video_tasks.start_task(
             audio_source=audio_source,
             audio_tts_task_id=audio_tts_task_id,
             srt_source=srt_source,
@@ -71,7 +72,7 @@ async def start_video(
 @router.get("/{task_id}")
 async def get_video_status(task_id: str) -> dict:
     """轮询视频任务状态"""
-    state = video_service.get_task_status(task_id)
+    state = video_tasks.get_task_status(task_id)
     if not state:
         raise HTTPException(404, "任务不存在")
     return {"data": {"task_id": task_id, **state}, "message": "ok"}

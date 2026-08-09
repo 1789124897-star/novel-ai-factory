@@ -7,37 +7,14 @@ import requests
 
 from app.core.config import settings
 from app.core.paths import PathConfig
-from app.services.task_manager import TaskManager
 
 logger = logging.getLogger(__name__)
 
-_task_manager = TaskManager()
-
-
-def start_compile(theme: str) -> str:
-    """启动后台内核编译任务，返回 task_id。"""
-    task_id = _task_manager.start(_do_compile, theme)
-    logger.info("内核编译任务已启动 task_id=%s theme=%s", task_id, theme)
-    return task_id
-
-
-def get_compile_status(task_id: str) -> dict | None:
-    """查询编译任务状态。"""
-    return _task_manager.get(task_id)
-
-
-def _do_compile(task_id: str, theme: str) -> None:
-    """后台执行内核编译，完成后将结果写入任务状态。"""
-    data = compile_kernel(theme)
-    _task_manager.update(task_id, **data)
-
-
-# ── 业务逻辑 ─────────────────────────────────────────────────
 
 def compile_kernel(theme: str) -> dict:
     """编译主题为结构化叙事内核，保存到文件并返回。"""
+    
     paths = PathConfig.from_settings(settings, theme=theme)
-
     prompt_path = paths.theme_compiler_prompt
     if not prompt_path.exists():
         raise FileNotFoundError(f"Prompt 模板未找到: {prompt_path}")
