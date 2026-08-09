@@ -86,10 +86,10 @@ class PathConfig:
     @property
     def font_path(self) -> Path:
         """字幕和水印使用的主字体。"""
-        p = Path(self.settings.WATERMARK_FONT)
-        if not p.is_absolute():
-            p = self.project_root / p
-        return p
+        font_file = Path(self.settings.WATERMARK_FONT)
+        if not font_file.is_absolute():
+            font_file = self.project_root / font_file
+        return font_file
 
     @property
     def prompts_dir(self) -> Path:

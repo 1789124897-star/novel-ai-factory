@@ -13,9 +13,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _escape_ffmpeg_text(s: str) -> str:
+def _escape_ffmpeg_text(text: str) -> str:
     """转义 FFmpeg drawtext 过滤器值中的特殊字符。"""
-    return s.replace("\\", "\\\\").replace("'", "\\'").replace(":", "\\:").replace("%", "\\%")
+    return text.replace("\\", "\\\\").replace("'", "\\'").replace(":", "\\:").replace("%", "\\%")
 
 
 class Watermark:

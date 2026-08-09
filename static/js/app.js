@@ -3,7 +3,7 @@
 let _currentTheme = "";
 let _kernelData = null;
 
-function doCompile() {
+async function doCompile() {
   const theme = document.getElementById("themeInput").value.trim();
   if (!theme) return alert("请输入或选择一个主题");
 
@@ -19,39 +19,63 @@ function doCompile() {
   document.getElementById("sectionNovel").style.display = "none";
   document.getElementById("novelStages").innerHTML = "";
 
-  fetch("/api/kernel", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ theme }),
-  })
-    .then(r => r.json())
-    .then(payload => {
-      if (!payload.data) throw new Error(payload.message || "未知错误");
+  let taskId = null;
+  try {
+    const resp = await fetch("/api/novel/kernel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ theme }),
+    });
+    const payload = await resp.json();
+    if (!payload.data || !payload.data.task_id) throw new Error(payload.message || "任务创建失败");
+    taskId = payload.data.task_id;
+  } catch (e) {
+    status.className = "status error";
+    status.textContent = "启动失败: " + e.message;
+    btn.disabled = false;
+    btn.textContent = "生成内核";
+    return;
+  }
 
-      document.getElementById("sectionError").style.display = "none";
+  const interval = setInterval(async () => {
+    try {
+      const resp = await fetch("/api/novel/kernel/" + taskId);
+      const payload = await resp.json();
+      const state = payload.data;
 
-      const d = payload.data;
-      _currentTheme = d.theme;
-      _kernelData = d.kernel;
+      if (state.status === "done") {
+        clearInterval(interval);
+        document.getElementById("sectionError").style.display = "none";
 
-      document.getElementById("resultTheme").textContent = "《" + d.theme + "》叙事内核";
-      document.getElementById("kernelContent").innerHTML = marked.parse(d.kernel);
-      document.getElementById("sectionKernel").style.display = "block";
-      document.getElementById("btnConfirmKernel").disabled = false;
+        _currentTheme = state.theme;
+        _kernelData = state.kernel;
 
-      status.className = "status";
-      status.textContent = "";
-    })
-    .catch(e => {
+        document.getElementById("resultTheme").textContent = "《" + state.theme + "》叙事内核";
+        document.getElementById("kernelContent").innerHTML = marked.parse(state.kernel);
+        document.getElementById("sectionKernel").style.display = "block";
+        document.getElementById("btnConfirmKernel").disabled = false;
+
+        status.className = "status";
+        status.textContent = "";
+        btn.disabled = false;
+        btn.textContent = "生成内核";
+      } else if (state.status === "error") {
+        clearInterval(interval);
+        status.className = "status error";
+        status.textContent = "";
+        document.getElementById("errorMsg").textContent = state.error || "未知错误";
+        document.getElementById("sectionError").style.display = "block";
+        btn.disabled = false;
+        btn.textContent = "生成内核";
+      }
+    } catch (e) {
+      clearInterval(interval);
       status.className = "status error";
-      status.textContent = "";
-      document.getElementById("errorMsg").textContent = e.message;
-      document.getElementById("sectionError").style.display = "block";
-    })
-    .finally(() => {
+      status.textContent = "轮询失败: " + e.message;
       btn.disabled = false;
       btn.textContent = "生成内核";
-    });
+    }
+  }, 2000);
 }
 
 // ── 确认内核，开始写小说 ─────────────────────────────────

@@ -45,7 +45,7 @@ class SubtitleRenderer:
         content = srt_path.read_text(encoding="utf-8-sig")
         subtitles = []
         for block in content.strip().split("\n\n"):
-            lines = [l.strip() for l in block.split("\n") if l.strip()]
+            lines = [line.strip() for line in block.split("\n") if line.strip()]
             if len(lines) < 3:
                 continue
             try:
@@ -65,23 +65,23 @@ class SubtitleRenderer:
     def _wrap_text(self, text: str, max_width: int) -> list[str]:
         lines = []
         current = ""
-        for ch in text:
-            bbox = self._font.getbbox(current + ch)
+        for char in text:
+            bbox = self._font.getbbox(current + char)
             if bbox[2] > max_width:
                 lines.append(current)
-                current = ch
+                current = char
             else:
-                current += ch
+                current += char
         if current:
             lines.append(current)
         return lines
 
     def _render_image(self, text: str, video_width: int) -> np.ndarray:
         margin = 80
-        max_w = video_width - margin
-        lines = self._wrap_text(text, max_w)
-        line_h = self._font.getbbox("测")[3] + 15
-        height = line_h * len(lines) + 20
+        max_width = video_width - margin
+        lines = self._wrap_text(text, max_width)
+        line_height = self._font.getbbox("测")[3] + 15
+        height = line_height * len(lines) + 20
 
         img = Image.new("RGBA", (video_width, height), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
@@ -97,7 +97,7 @@ class SubtitleRenderer:
                 stroke_width=self.stroke_width,
                 stroke_fill="black",
             )
-            y += line_h
+            y += line_height
         return np.array(img)
 
     # ── 渲染 ──────────────────────────────────────────
@@ -110,14 +110,14 @@ class SubtitleRenderer:
 
         logger.info("正在加载视频 …")
         self._video = VideoFileClip(str(video_path))
-        vw, vh = self._video.size
-        logger.info("视频: %dx%d", vw, vh)
+        video_width, video_height = self._video.size
+        logger.info("视频: %dx%d", video_width, video_height)
 
         entries = self._parse_srt(srt_path)
         for i, (start, end, text) in enumerate(entries, 1):
-            img = self._render_image(text, vw)
+            img = self._render_image(text, video_width)
             clip = ImageClip(img).with_start(start).with_end(end).with_position(
-                ("center", vh * self._y_ratio)
+                ("center", video_height * self._y_ratio)
             )
             self._sub_clips.append(clip)
             if i % 50 == 0:
@@ -144,6 +144,6 @@ class SubtitleRenderer:
     def _cleanup(self) -> None:
         if self._video:
             self._video.close()
-        for c in self._sub_clips:
-            c.close()
+        for sub_clip in self._sub_clips:
+            sub_clip.close()
         self._sub_clips.clear()

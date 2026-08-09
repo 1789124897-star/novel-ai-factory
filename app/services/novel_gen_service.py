@@ -7,17 +7,16 @@
 """
 
 import logging
-import threading
 import time
-import uuid
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 import requests
 
 from app.core.config import settings, Settings
 from app.core.paths import PathConfig
+from app.services.task_manager import TaskManager
 
 logger = logging.getLogger(__name__)
 
@@ -212,59 +211,38 @@ class NovelGenerator:
 
 # ── 异步任务管理 ─────────────────────────────────────────────
 
-# 内存任务存储（生产环境改用 Redis）
-_tasks: dict[str, dict] = {}
-_lock = threading.Lock()
+_task_manager = TaskManager()
 
 
 def start_generation(theme: str, kernel: str, target_words: int = 8000) -> str:
     """启动后台小说生成任务，返回 task_id。"""
-    task_id = str(uuid.uuid4())[:8]
-    _tasks[task_id] = {
-        "status": "running",
-        "current_stage": "起",
-        "stages": {},
-        "error": None,
-    }
-
-    thread = threading.Thread(
-        target=_run_generation, args=(task_id, theme, kernel, target_words), daemon=True
+    task_id = _task_manager.start(
+        _do_generation, theme, kernel, target_words,
+        current_stage="起",
+        stages={},
     )
-    thread.start()
     logger.info("小说生成任务已启动 task_id=%s theme=%s", task_id, theme)
     return task_id
 
 
 def get_task_status(task_id: str) -> Optional[dict]:
     """查询任务状态。"""
-    return _tasks.get(task_id)
+    return _task_manager.get(task_id)
 
 
-def _run_generation(task_id: str, theme: str, kernel: str, target_words: int) -> None:
-    """后台线程：跑四阶段生成，每完成一个阶段实时更新状态。"""
+def _do_generation(task_id: str, theme: str, kernel: str, target_words: int) -> None:
+    """后台执行四阶段小说生成，每阶段完成实时更新状态。"""
+    stages: dict[str, str] = {}
+
     def on_stage(name: str, content: str) -> None:
-        with _lock:
-            task = _tasks.get(task_id)
-            if task:
-                task["current_stage"] = name
-                task["stages"][name] = content
+        stages[name] = content
+        _task_manager.update(task_id, current_stage=name, stages=dict(stages))
         logger.info("阶段 [%s] 完成，字数=%d", name, len(content))
 
-    try:
-        paths = PathConfig.from_settings(settings, theme=theme)
-        prompt = NovelPrompt(theme, paths, kernel)
-        generator = NovelGenerator(prompt, paths, settings)
-        generator.generate_novel(
-            target_words=target_words,
-            on_stage_complete=on_stage,
-        )
-
-        with _lock:
-            if task_id in _tasks:
-                _tasks[task_id]["status"] = "done"
-    except Exception as e:
-        logger.exception("小说生成失败 task_id=%s", task_id)
-        with _lock:
-            if task_id in _tasks:
-                _tasks[task_id]["status"] = "error"
-                _tasks[task_id]["error"] = str(e)
+    paths = PathConfig.from_settings(settings, theme=theme)
+    prompt = NovelPrompt(theme, paths, kernel)
+    generator = NovelGenerator(prompt, paths, settings)
+    generator.generate_novel(
+        target_words=target_words,
+        on_stage_complete=on_stage,
+    )

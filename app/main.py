@@ -37,7 +37,7 @@ def _bootstrap(theme: str = ""):
 
 def _cmd_novel(args: argparse.Namespace) -> int:
     """``novel`` 子命令 — 编译内核 + 生成小说。"""
-    from app.services.novel_service import NovelService
+    from app.services import novel_service
     from app.services.novel_gen_service import NovelGenerator
     from app.services.novel_gen_service import NovelPrompt
 
@@ -48,7 +48,7 @@ def _cmd_novel(args: argparse.Namespace) -> int:
     print(f"\n{'='*60}")
     print(f"  🔮 编译叙事内核：{theme}")
     print(f"{'='*60}")
-    data = NovelService.compile_kernel(theme)
+    data = novel_service.compile_kernel(theme)
     kernel = data["kernel"]
     print(f"  ✓ 内核已保存 → {data['kernel_path']}")
 
@@ -69,7 +69,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
     from app.core.config import settings
     from app.core.logging import setup_logging
     from app.core.paths import PathConfig
-    from app.services.novel_service import NovelService
+    from app.services import novel_service
     from app.services.novel_gen_service import NovelGenerator
     from app.services.novel_gen_service import NovelPrompt
     from app.pipeline.stage import Stage
@@ -108,7 +108,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
 
     if Stage.COMPILE in stage_set:
         print(f"\n  🔮 编译叙事内核 …")
-        data = NovelService.compile_kernel(theme)
+        data = novel_service.compile_kernel(theme)
         kernel = data["kernel"]
         print(f"  ✓ 内核已保存 → {data['kernel_path']}")
 
@@ -135,7 +135,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         prog="novel-ai-factory",
         description="AI 小说工厂 — 从主题到小说的生成管线",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -145,20 +145,20 @@ def _build_parser() -> argparse.ArgumentParser:
   novel-ai-factory run -t "铁甲怪人"          运行全流程
 """,
     )
-    subs = p.add_subparsers(dest="command")
+    subparsers = parser.add_subparsers(dest="command")
 
     # ── novel ────────────────────────────────────────────────
-    n = subs.add_parser("novel", help="生成小说（编译内核 + 四阶段生成）")
-    n.add_argument("--theme", "-t", help="故事主题")
-    n.add_argument("--target-words", type=int, default=8000, help="目标字数 (默认 8000)")
+    novel_parser = subparsers.add_parser("novel", help="生成小说（编译内核 + 四阶段生成）")
+    novel_parser.add_argument("--theme", "-t", help="故事主题")
+    novel_parser.add_argument("--target-words", type=int, default=8000, help="目标字数 (默认 8000)")
 
     # ── run ──────────────────────────────────────────────────
-    r = subs.add_parser("run", help="运行完整管道")
-    r.add_argument("--theme", "-t", help="故事主题")
-    r.add_argument("--stages", help="指定阶段，逗号分隔 (默认全部)")
-    r.add_argument("--skip", nargs="*", help="跳过的阶段名")
+    run_parser = subparsers.add_parser("run", help="运行完整管道")
+    run_parser.add_argument("--theme", "-t", help="故事主题")
+    run_parser.add_argument("--stages", help="指定阶段，逗号分隔 (默认全部)")
+    run_parser.add_argument("--skip", nargs="*", help="跳过的阶段名")
 
-    return p
+    return parser
 
 
 # ═══════════════════════════════════════════════════════════════

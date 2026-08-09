@@ -33,9 +33,9 @@ class VideoPipeline:
         self, start_index: int, target_duration: float
     ) -> list[Path]:
         all_clips = sorted(
-            p
-            for p in self._paths.video_clip_dir.iterdir()
-            if p.suffix.lower() in VIDEO_EXTENSIONS
+            clip_path
+            for clip_path in self._paths.video_clip_dir.iterdir()
+            if clip_path.suffix.lower() in VIDEO_EXTENSIONS
         )
         if not all_clips:
             raise FileNotFoundError(
@@ -52,25 +52,25 @@ class VideoPipeline:
         selected: list[Path] = []
         accumulated = 0.0
 
-        for i, p in enumerate(candidates, 1):
+        for i, clip_path in enumerate(candidates, 1):
             try:
-                with VideoFileClip(str(p)) as clip:
+                with VideoFileClip(str(clip_path)) as clip:
                     if clip.duration <= 0:
                         continue
-                    selected.append(p)
+                    selected.append(clip_path)
                     accumulated += clip.duration
                     logger.info(
                         "[%d/%d] %s  dur=%.1fs  acc=%.1fs",
                         i,
                         len(candidates),
-                        p.name,
+                        clip_path.name,
                         clip.duration,
                         accumulated,
                     )
                     if accumulated >= target_duration:
                         break
             except Exception:
-                logger.warning("跳过无法读取的片段: %s", p.name)
+                logger.warning("跳过无法读取的片段: %s", clip_path.name)
 
         if not selected:
             raise ValueError("未找到可用的视频片段")
@@ -95,24 +95,24 @@ class VideoPipeline:
             raise FileNotFoundError(f"音频未找到: {audio_path}")
 
         audio = AudioFileClip(str(audio_path))
-        target_dur = round(audio.duration, 2)
-        logger.info("目标音频时长: %.1fs", target_dur)
+        target_duration = round(audio.duration, 2)
+        logger.info("目标音频时长: %.1fs", target_duration)
 
-        clip_paths = self._collect_clips(start_index, target_dur)
+        clip_paths = self._collect_clips(start_index, target_duration)
         logger.info("已选择 %d 个片段", len(clip_paths))
 
         clips: list[VideoFileClip] = []
         final = None
         try:
-            for p in clip_paths:
-                clips.append(VideoFileClip(str(p)))
+            for clip_path in clip_paths:
+                clips.append(VideoFileClip(str(clip_path)))
 
             fps = min(clips[0].fps or 30, 24)
             logger.info("输出帧率: %d", fps)
 
             final = concatenate_videoclips(clips, method="compose")
-            if final.duration > target_dur:
-                final = final.subclipped(0, target_dur)
+            if final.duration > target_duration:
+                final = final.subclipped(0, target_duration)
 
             final = final.with_audio(audio)
 
@@ -136,8 +136,8 @@ class VideoPipeline:
                 audio.close()
             if final:
                 final.close()
-            for c in clips:
+            for clip in clips:
                 try:
-                    c.close()
+                    clip.close()
                 except Exception:
                     pass

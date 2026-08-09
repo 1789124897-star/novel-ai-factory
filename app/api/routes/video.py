@@ -10,12 +10,13 @@ from app.services import video_service
 
 router = APIRouter(prefix="/api/video", tags=["Video"])
 
-VIDEO_DIR = Path(__file__).resolve().parent.parent.parent.parent / "assets" / "videos"
 VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov"}
+VIDEO_DIR = Path(__file__).resolve().parent.parent.parent.parent / "assets" / "videos"
 
 
 @router.get("/clips")
 async def list_clips() -> dict:
+    """查询可用背景视频片段数量"""
     count = 0
     if VIDEO_DIR.exists():
         count = sum(1 for p in VIDEO_DIR.iterdir() if p.suffix.lower() in VIDEO_EXTENSIONS)
@@ -33,12 +34,12 @@ async def start_video(
     bgm_file: Optional[UploadFile] = None,
     watermark_text: str = Form(""),
 ) -> dict:
-    """启动视频制作任务。"""
-    # 保存上传文件
+    """启动视频制作任务"""
     upload_dir = video_service.UPLOAD_DIR
     upload_dir.mkdir(parents=True, exist_ok=True)
     bgm_path = ""
 
+    # 保存上传文件到 upload_dir
     if audio_source == "upload" and audio_file:
         dest = upload_dir / f"audio_{audio_file.filename}"
         with dest.open("wb") as f:
@@ -69,7 +70,7 @@ async def start_video(
 
 @router.get("/{task_id}")
 async def get_video_status(task_id: str) -> dict:
-    """轮询视频任务状态。"""
+    """轮询视频任务状态"""
     state = video_service.get_task_status(task_id)
     if not state:
         raise HTTPException(404, "任务不存在")

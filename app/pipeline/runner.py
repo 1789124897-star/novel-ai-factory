@@ -9,7 +9,7 @@ from typing import Optional
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.core.paths import PathConfig
-from app.services.novel_service import NovelService
+from app.services import novel_service
 from app.services.novel_gen_service import NovelGenerator
 from app.services.novel_gen_service import NovelPrompt
 
@@ -68,7 +68,7 @@ class PipelineRunner:
         # ── 1. 编译内核 ────────────────────────────────────
         if "compile" not in skip_set:
             report(STAGES[0][0], STAGES[0][2])
-            data = NovelService.compile_kernel(theme)
+            data = novel_service.compile_kernel(theme)
             kernel = data["kernel"]
             report(STAGES[0][1] - 0.01, STAGES[0][2])
 
@@ -99,9 +99,9 @@ class PipelineRunner:
                 stage_idx = [0]
 
                 def patched_single(prompt_text, max_retries=3):
-                    sname = gen_stages[min(stage_idx[0], 3)]
+                    stage_name = gen_stages[min(stage_idx[0], 3)]
                     sub_pct = gen_start + gen_range * (stage_idx[0] / len(gen_stages))
-                    report(sub_pct, f"生成中：{sname}")
+                    report(sub_pct, f"生成中：{stage_name}")
                     result_text = original_single(prompt_text, max_retries)
                     stage_idx[0] += 1
                     return result_text
@@ -124,8 +124,8 @@ class PipelineRunner:
         for key in list(result):
             if key.endswith("_path") and result[key]:
                 try:
-                    rel = Path(result[key]).relative_to(output_root)
-                    result[key] = "/" + str(rel).replace("\\", "/")
+                    relative_path = Path(result[key]).relative_to(output_root)
+                    result[key] = "/" + str(relative_path).replace("\\", "/")
                 except ValueError:
                     pass
 

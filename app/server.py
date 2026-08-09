@@ -5,13 +5,12 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import novel_router, pipeline_router, tts_router, video_router
+from app.api.routes import novel_router, tts_router, video_router
 
 app = FastAPI(title="小说AI工厂", version="1.0.0")
 
 # API 路由
 app.include_router(novel_router)
-app.include_router(pipeline_router)
 app.include_router(tts_router)
 app.include_router(video_router)
 

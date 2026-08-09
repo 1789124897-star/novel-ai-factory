@@ -1,17 +1,11 @@
 """TTS 路由"""
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
 
+from app.schemas.tts import TTSRequest
 from app.services import tts_service
 
 router = APIRouter(prefix="/api/tts", tags=["TTS"])
-
-
-class TTSRequest(BaseModel):
-    text: str
-    voice: str = ""
-    rate: str = ""
 
 
 @router.post("")
