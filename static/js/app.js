@@ -15,10 +15,6 @@ async function doCompile() {
   status.className = "status loading";
   status.textContent = "AI 正在分析主题，编译叙事内核…";
 
-  // 清除上次生成的小说
-  document.getElementById("sectionNovel").style.display = "none";
-  document.getElementById("novelStages").innerHTML = "";
-
   let taskId = null;
   try {
     const resp = await fetch("/api/novel/kernel", {
@@ -85,109 +81,7 @@ let _novelFullText = "";
 
 function confirmKernel() {
   document.getElementById("btnConfirmKernel").disabled = true;
-  document.getElementById("sectionNovel").style.display = "block";
-  document.getElementById("sectionNovel").scrollIntoView({ behavior: "smooth" });
-
-  // 初始化四个阶段面板
-  const container = document.getElementById("novelStages");
-  container.innerHTML = STAGES.map(name => `
-    <div class="stage-panel" id="stage-${name}">
-      <div class="stage-panel-header" onclick="toggleStage('${name}')">
-        <span class="icon">▶</span>
-        <span>${name} · 第${STAGES.indexOf(name) + 1}阶段</span>
-      </div>
-      <div class="stage-panel-body loading">等待生成…</div>
-    </div>
-  `).join("");
-
-  // 重置进度点
-  document.querySelectorAll(".stage-dot").forEach(d => d.className = "stage-dot");
-
-  generateNovel();
-}
-
-function toggleStage(name) {
-  document.getElementById("stage-" + name).classList.toggle("open");
-}
-
-// ── 小说生成（轮询） ─────────────────────────────────────
-
-async function generateNovel() {
-  const status = document.getElementById("novelStatus");
-  status.className = "status loading";
-
-  let taskId = null;
-  try {
-    const resp = await fetch("/api/novel/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ theme: _currentTheme, kernel: _kernelData }),
-    });
-    const data = await resp.json();
-    if (!data.data || !data.data.task_id) throw new Error(data.message || "任务创建失败");
-    taskId = data.data.task_id;
-  } catch (e) {
-    status.className = "status error";
-    status.textContent = "启动失败: " + e.message;
-    return;
-  }
-
-  const doneStages = new Set();
-
-  status.textContent = "正在生成「起」…";
-  const interval = setInterval(async () => {
-    try {
-      const resp = await fetch("/api/novel/generate/" + taskId);
-      const data = await resp.json();
-      const state = data.data;
-
-      // 更新进度点
-      STAGES.forEach(name => {
-        const dot = document.querySelector(`.stage-dot[data-stage="${name}"]`);
-        if (state.stages && state.stages[name]) {
-          dot.className = "stage-dot done";
-        } else if (name === state.current_stage) {
-          dot.className = "stage-dot active";
-        }
-      });
-
-      // 更新已完成阶段的面板内容
-      if (state.stages) {
-        for (const [name, content] of Object.entries(state.stages)) {
-          if (!doneStages.has(name) && content) {
-            doneStages.add(name);
-            const panel = document.getElementById("stage-" + name);
-            const body = panel.querySelector(".stage-panel-body");
-            body.className = "stage-panel-body";
-            body.innerHTML = marked.parse(content);
-            panel.classList.add("open");
-          }
-        }
-      }
-
-      // 更新状态文字
-      if (state.status === "done") {
-        clearInterval(interval);
-        status.className = "status";
-        status.textContent = "小说生成完成 ✓";
-        document.querySelectorAll(".stage-dot").forEach(d => d.className = "stage-dot done");
-
-        // 保存全文，供 TTS 导入使用
-        _novelFullText = STAGES.map(name => state.stages?.[name] || "").filter(Boolean).join("\n\n");
-      } else if (state.status === "error") {
-        clearInterval(interval);
-        status.className = "status error";
-        status.textContent = "生成失败: " + (state.error || "未知错误");
-      } else {
-        const cur = state.current_stage || STAGES[0];
-        status.textContent = "正在生成「" + cur + "」…";
-      }
-    } catch (e) {
-      clearInterval(interval);
-      status.className = "status error";
-      status.textContent = "轮询失败: " + e.message;
-    }
-  }, 2000);
+  switchTab("tabNovelGen");
 }
 
 // ── utils ─────────────────────────────────────────────────
@@ -197,16 +91,15 @@ function switchTab(tabId) {
   document.querySelector(`[data-tab="${tabId}"]`).classList.add("active");
   document.querySelectorAll(".tab-content").forEach(c => c.style.display = "none");
   document.getElementById(tabId).style.display = "";
+  if (tabId === "tabNovelGen") { loadGenPrompt(); checkTab1Kernel(); }
 }
 
 function resetUI() {
   document.getElementById("sectionInput").style.display = "block";
   document.getElementById("sectionKernel").style.display = "none";
-  document.getElementById("sectionNovel").style.display = "none";
   document.getElementById("sectionError").style.display = "none";
   document.getElementById("compileStatus").className = "status";
   document.getElementById("compileStatus").textContent = "";
-  document.getElementById("novelStages").innerHTML = "";
   document.getElementById("ttsResult").style.display = "none";
   _novelFullText = "";
   document.getElementById("ttsText").value = "";
@@ -455,6 +348,200 @@ async function doGenVideo() {
       btn.textContent = "🎬 生成视频";
     }
   }, 2000);
+}
+
+// ── 📝 小说生成 Tab ─────────────────────────────────────
+
+let _genDefaultPrompt = "";
+let _genKernelSource = "import_tab1";
+let _genCurrentKernel = "";
+
+function switchGenKernelSource(mode) {
+  _genKernelSource = mode;
+  const isManual = mode === "manual";
+  document.getElementById("genKernelManual").style.display = isManual ? "" : "none";
+  document.getElementById("genBtnImportTab1").closest("div").style.display = isManual ? "none" : "";
+  if (!isManual) checkTab1Kernel();
+}
+
+function toggleGenPrompt() {
+  const body = document.getElementById("genPromptBody");
+  const btn = document.getElementById("genBtnTogglePrompt");
+  const open = body.style.display === "none";
+  body.style.display = open ? "" : "none";
+  btn.textContent = open ? "📝 收起提示词模板" : "📝 编辑提示词模板";
+}
+
+async function loadGenPrompt() {
+  if (_genDefaultPrompt) {
+    document.getElementById("genPromptTemplate").value = _genDefaultPrompt;
+    return;
+  }
+  try {
+    const resp = await fetch("/api/novel/prompt-template");
+    const data = await resp.json();
+    _genDefaultPrompt = data.data.content;
+    document.getElementById("genPromptTemplate").value = _genDefaultPrompt;
+  } catch (e) { console.error("加载提示词失败:", e); }
+}
+
+async function resetGenPrompt() { _genDefaultPrompt = ""; await loadGenPrompt(); }
+
+// ── 从 Tab1 导入内核 ───────────────────────────────────
+
+function checkTab1Kernel() {
+  const btn = document.getElementById("genBtnImportTab1");
+  const hint = document.getElementById("genKernelTab1Hint");
+  const preview = document.getElementById("genKernelTab1Preview");
+
+  // 已导入过，保持导入状态
+  if (_genCurrentKernel) {
+    btn.disabled = true;
+    btn.textContent = "✅ 已导入";
+    hint.textContent = "内核已导入，可以开始生成小说。";
+    return;
+  }
+
+  if (_kernelData && _currentTheme) {
+    btn.disabled = false;
+    btn.textContent = `📥 导入内核：「${_currentTheme}」`;
+    hint.textContent = "";
+    preview.style.display = "none";
+  } else {
+    btn.disabled = true;
+    btn.textContent = "📥 请先在「编译叙事内核」中生成内核";
+    hint.textContent = "";
+  }
+}
+
+function importKernelFromTab1() {
+  if (!_kernelData || !_currentTheme) return alert("请先在编译模块中生成内核");
+  _genCurrentKernel = _kernelData;
+  document.getElementById("genThemeInput").value = _currentTheme;
+  document.getElementById("genKernelText").value = _kernelData;
+  const preview = document.getElementById("genKernelTab1Preview");
+  preview.innerHTML = marked.parse(_kernelData);
+  preview.style.display = "";
+  const btn = document.getElementById("genBtnImportTab1");
+  btn.disabled = true;
+  btn.textContent = "✅ 已导入";
+  document.getElementById("genKernelTab1Hint").textContent = "内核已导入，可以开始生成小说。";
+}
+
+// ── AI 生成内核（已移除，内核统一从 Tab1 编译模块获取） ──
+
+function getGenKernel() {
+  if (_genKernelSource === "manual") return document.getElementById("genKernelText").value.trim();
+  return _genCurrentKernel;
+}
+
+// ── 生成小说 ────────────────────────────────────────────
+
+async function doGenGenerateNovel() {
+  const theme = document.getElementById("genThemeInput").value.trim();
+  const kernel = getGenKernel();
+  const targetWords = parseInt(document.getElementById("genTargetWords").value) || 8000;
+  const promptText = document.getElementById("genPromptTemplate").value.trim();
+
+  if (!theme) return alert("请输入故事主题");
+  if (!kernel) return alert("请先生成内核、手动编写或导入历史内核");
+  if (!promptText) return alert("提示词模板不能为空");
+
+  _genCurrentKernel = kernel;
+
+  const section = document.getElementById("genSectionNovel");
+  section.style.display = "block"; section.scrollIntoView({ behavior: "smooth" });
+
+  const container = document.getElementById("genNovelStages");
+  container.innerHTML = STAGES.map(name => `
+    <div class="stage-panel" id="genStage-${name}">
+      <div class="stage-panel-header" onclick="toggleGenStage('${name}')">
+        <span class="icon">▶</span><span>${name} · 第${STAGES.indexOf(name) + 1}阶段</span>
+      </div>
+      <div class="stage-panel-body loading">等待生成…</div>
+    </div>
+  `).join("");
+
+  const progressBar = document.getElementById("genNovelProgress");
+  progressBar.querySelectorAll(".stage-dot").forEach(d => d.className = "stage-dot");
+
+  const btn = document.getElementById("genBtnGenerate");
+  const status = document.getElementById("genGenStatus");
+  btn.disabled = true; btn.textContent = "⏳ 启动中…";
+  status.className = "status loading"; status.textContent = "正在提交生成任务…";
+
+  const customPrompt = promptText !== _genDefaultPrompt ? promptText : null;
+
+  let taskId = null;
+  try {
+    const resp = await fetch("/api/novel/generate", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ theme, kernel, target_words: targetWords, custom_prompt: customPrompt || undefined }),
+    });
+    const data = await resp.json();
+    if (!data.data?.task_id) throw new Error(data.message || "任务创建失败");
+    taskId = data.data.task_id;
+  } catch (e) {
+    status.className = "status error"; status.textContent = "启动失败: " + e.message;
+    btn.disabled = false; btn.textContent = "🚀 生成小说"; return;
+  }
+
+  const novelStatus = document.getElementById("genNovelStatus");
+  novelStatus.className = "status loading";
+  const doneStages = new Set();
+
+  status.textContent = "正在生成「起」…";
+  const interval = setInterval(async () => {
+    try {
+      const resp = await fetch("/api/novel/generate/" + taskId);
+      const state = (await resp.json()).data;
+
+      STAGES.forEach(name => {
+        const dot = progressBar.querySelector(`.stage-dot[data-stage="${name}"]`);
+        if (state.stages?.[name]) dot.className = "stage-dot done";
+        else if (name === state.current_stage) dot.className = "stage-dot active";
+      });
+
+      if (state.stages) {
+        for (const [name, content] of Object.entries(state.stages)) {
+          if (!doneStages.has(name) && content) {
+            doneStages.add(name);
+            const panel = document.getElementById("genStage-" + name);
+            const body = panel.querySelector(".stage-panel-body");
+            body.className = "stage-panel-body";
+            body.innerHTML = marked.parse(content);
+            panel.classList.add("open");
+          }
+        }
+      }
+
+      if (state.status === "done") {
+        clearInterval(interval);
+        status.className = "status"; status.textContent = "小说生成完成 ✓";
+        novelStatus.className = "status"; novelStatus.textContent = "";
+        progressBar.querySelectorAll(".stage-dot").forEach(d => d.className = "stage-dot done");
+        btn.disabled = false; btn.textContent = "🚀 重新生成";
+        // 同步到 TTS
+        _novelFullText = STAGES.map(n => state.stages?.[n] || "").filter(Boolean).join("\n\n");
+      } else if (state.status === "error") {
+        clearInterval(interval);
+        status.className = "status error"; status.textContent = "生成失败: " + (state.error || "未知");
+        btn.disabled = false; btn.textContent = "🚀 生成小说";
+      } else {
+        const cur = state.current_stage || STAGES[0];
+        status.textContent = "正在生成「" + cur + "」…";
+        novelStatus.textContent = "正在生成「" + cur + "」…";
+      }
+    } catch (e) {
+      clearInterval(interval);
+      status.className = "status error"; status.textContent = "轮询失败: " + e.message;
+      btn.disabled = false; btn.textContent = "🚀 生成小说";
+    }
+  }, 2000);
+}
+
+function toggleGenStage(name) {
+  document.getElementById("genStage-" + name).classList.toggle("open");
 }
 
 // 切到视频 Tab 时自动填入 TTS 数据提示

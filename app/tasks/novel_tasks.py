@@ -1,7 +1,6 @@
 """叙事内核编译 — 异步任务调度"""
 
 import logging
-from typing import Optional
 
 from app.services.novel_service import compile_kernel
 from app.services.task_manager import TaskManager

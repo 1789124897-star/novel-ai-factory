@@ -64,24 +64,37 @@ _SYSTEM_PROMPT = (
 class NovelPrompt:
     """组装每阶段 prompt，以不可变叙事内核为锚点。"""
 
-    def __init__(self, theme: str, paths: PathConfig, kernel: str):
+    def __init__(self, theme: str, paths: PathConfig, kernel: str, custom_prompt: Optional[str] = None):
         self.theme = theme
         self.kernel_text = kernel
-        self._base = self._load_base_prompt(paths)
+        if custom_prompt and custom_prompt.strip():
+            self._base = custom_prompt.strip()
+        else:
+            self._base = self._load_base_prompt(paths)
 
     def get_stage_prompt(
         self,
         stage_info: dict,
         previous_full_text: str = "",
+        target_words: int = 8000,
     ) -> str:
         """构建单阶段完整 prompt。"""
+        # 按 target_words 等比例缩放各阶段字数范围
+        stage_low, stage_high = self._parse_range(stage_info["word_hint"])
+        total_low = sum(self._parse_range(s["word_hint"])[0] for s in STAGES)
+        total_high = sum(self._parse_range(s["word_hint"])[1] for s in STAGES)
+        ratio = target_words / ((total_low + total_high) / 2)
+        low = max(50, int(stage_low * ratio))
+        high = max(100, int(stage_high * ratio))
+        word_req = f"{low}–{high}"
+
         prompt_parts = [
             f"【不可违背的叙事内核锚点】\n{self.kernel_text}",
             "所有情节、人物动机、预言、核心事件、信物、空间异常等必须严格与以上内核一致，不得任何改动或偏离。",
             self._base.format(theme=self.theme),
             f"【当前写作阶段】{stage_info['name']}",
             f"【章节范围】{stage_info['chapter_range']}",
-            f"【本阶段严格字数要求】必须控制在{stage_info['word_hint']}字（纯中文字符，不计标点空格）。",
+            f"【本阶段严格字数要求】必须控制在{word_req}字（纯中文字符，不计标点空格）。",
             f"【核心任务】{stage_info['task']}",
         ]
 
@@ -101,6 +114,12 @@ class NovelPrompt:
             "- 必须满足字数硬性要求！"
         )
         return "\n\n".join(prompt_parts)
+
+    @staticmethod
+    def _parse_range(word_hint: str) -> tuple[int, int]:
+        """从 '1400–1600' 解析为 (1400, 1600)。"""
+        parts = word_hint.replace("–", "-").split("-")
+        return int(parts[0]), int(parts[1])
 
     @staticmethod
     def _load_base_prompt(paths: PathConfig) -> str:
@@ -129,7 +148,6 @@ class NovelGenerator:
         self.paths = paths
 
     def _single_generate(self, prompt_text: str, max_retries: int = 3) -> str:
-
         for attempt in range(max_retries):
             try:
                 payload = {
@@ -175,7 +193,7 @@ class NovelGenerator:
         for idx, stage in enumerate(STAGES, 1):
             logger.info("━ 第 %d 阶段：【%s】", idx, stage["name"])
 
-            stage_prompt = self.prompt.get_stage_prompt(stage, full_content)
+            stage_prompt = self.prompt.get_stage_prompt(stage, full_content, target_words=target_words)
             stage_content = self._single_generate(stage_prompt)
 
             full_content += stage_content + "\n\n"

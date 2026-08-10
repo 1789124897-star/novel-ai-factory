@@ -115,8 +115,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
     if Stage.GENERATE in stage_set:
         if kernel is None:
             if paths.kernel_file.exists():
-                import json
-                kernel = json.loads(paths.kernel_file.read_text(encoding="utf-8"))
+                kernel = paths.kernel_file.read_text(encoding="utf-8")
             else:
                 print("❌ 需要先编译叙事内核 (--stages compile)", file=sys.stderr)
                 return 1
@@ -124,7 +123,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         print(f"\n  📖 四阶段小说生成 (起·承·转·合)")
         prompt = NovelPrompt(theme, paths, kernel)
         generator = NovelGenerator(prompt, paths, settings)
-        novel_text = generator.generate_novel()
+        novel_text = generator.generate_novel(target_words=getattr(args, "target_words", 8000))
         paths.novel_output.write_text(novel_text, encoding="utf-8")
         print(f"  ✅ 小说完成 — {len(novel_text)} 字 → {paths.novel_output}")
 
@@ -156,6 +155,7 @@ def _build_parser() -> argparse.ArgumentParser:
     run_parser = subparsers.add_parser("run", help="运行完整管道")
     run_parser.add_argument("--theme", "-t", help="故事主题")
     run_parser.add_argument("--stages", help="指定阶段，逗号分隔 (默认全部)")
+    run_parser.add_argument("--target-words", type=int, default=8000, help="目标字数 (默认 8000)")
     run_parser.add_argument("--skip", nargs="*", help="跳过的阶段名")
 
     return parser

@@ -15,15 +15,21 @@ _task_manager = TaskManager()
 _STAGE_NAMES = [s["name"] for s in STAGES]
 
 
-def start_generation(theme: str, kernel: str, target_words: int = 8000) -> str:
+def start_generation(
+    theme: str,
+    kernel: str,
+    target_words: int = 8000,
+    custom_prompt: Optional[str] = None,
+) -> str:
     """启动后台小说生成任务，返回 task_id。"""
     task_id = _task_manager.start(
         _do_generation,
-        theme, 
+        theme,
         kernel,
         target_words,
+        custom_prompt,
     )
-    logger.info("小说生成任务已启动 task_id=%s theme=%s", task_id, theme)
+    logger.info("小说生成任务已启动 task_id=%s theme=%s target=%d", task_id, theme, target_words)
     return task_id
 
 
@@ -32,7 +38,13 @@ def get_task_status(task_id: str) -> Optional[dict]:
     return _task_manager.get(task_id)
 
 
-def _do_generation(task_id: str, theme: str, kernel: str, target_words: int) -> None:
+def _do_generation(
+    task_id: str,
+    theme: str,
+    kernel: str,
+    target_words: int,
+    custom_prompt: Optional[str],
+) -> None:
     """后台执行四阶段小说生成，每阶段完成实时更新状态。"""
     stages: dict[str, str] = {}
 
@@ -46,7 +58,7 @@ def _do_generation(task_id: str, theme: str, kernel: str, target_words: int) -> 
     _task_manager.update(task_id, current_stage="起")
 
     paths = PathConfig.from_settings(settings, theme=theme)
-    prompt = NovelPrompt(theme, paths, kernel)
+    prompt = NovelPrompt(theme, paths, kernel, custom_prompt=custom_prompt)
     generator = NovelGenerator(prompt, paths, settings)
     generator.generate_novel(
         target_words=target_words,

@@ -20,6 +20,7 @@
   <!-- Nav Tabs -->
   <nav class="nav-tabs">
     <button class="nav-tab active" data-tab="tabNovel" onclick="switchTab('tabNovel')">📖 编译叙事内核</button>
+    <button class="nav-tab" data-tab="tabNovelGen" onclick="switchTab('tabNovelGen')">📝 小说生成</button>
     <button class="nav-tab" data-tab="tabTTS" onclick="switchTab('tabTTS')">🎙️ Edge TTS 配音</button>
     <button class="nav-tab" data-tab="tabVideo" onclick="switchTab('tabVideo')">🎬 视频制作</button>
   </nav>
@@ -50,22 +51,82 @@
       <h2 id="resultTheme"></h2>
       <div id="kernelContent" class="kernel-text"></div>
       <div class="kernel-actions">
-        <button id="btnConfirmKernel" onclick="confirmKernel()">确认内核，开始写小说 →</button>
+        <button id="btnConfirmKernel" onclick="confirmKernel()">去生成小说 →</button>
       </div>
     </section>
 
-    <!-- 小说生成 -->
-    <section class="card" id="sectionNovel" style="display:none;">
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- Tab: 小说生成（独立模块，可自定义提示词/内核/字数） -->
+  <!-- ================================================================ -->
+  <div id="tabNovelGen" class="tab-content" style="display:none;">
+
+    <!-- 提示词模板编辑器 -->
+    <section class="card" id="genSectionPrompt">
+      <h2>提示词模板</h2>
+      <p class="hint">可查看和编辑提示词，修改后生成会使用自定义版本</p>
+      <button id="genBtnTogglePrompt" class="btn-gen-compile" onclick="toggleGenPrompt()" style="margin-bottom:12px;">📝 编辑提示词模板</button>
+      <div id="genPromptBody" style="display:none;">
+        <textarea id="genPromptTemplate" class="prompt-editor" rows="20"></textarea>
+        <div class="prompt-actions">
+          <button class="btn-outline btn-reset" onclick="resetGenPrompt()">🔄 恢复默认</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 生成配置 -->
+    <section class="card" id="genSectionInput">
+      <h2>小说生成</h2>
+      <p class="hint">输入主题和内核，自定义字数后开始生成</p>
+
+      <div class="input-group">
+        <div class="field">
+          <label>故事主题</label>
+          <input id="genThemeInput" placeholder="例如：仵作之死">
+        </div>
+        <div class="field short" style="flex:0 0 120px;">
+          <label>目标字数</label>
+          <input id="genTargetWords" type="number" value="8000" min="1000" max="50000" step="500">
+        </div>
+      </div>
+
+      <!-- 内核源 -->
+      <div style="margin-top:16px;">
+        <button id="genBtnImportTab1" class="btn-primary tts-btn" onclick="importKernelFromTab1()" disabled>📥 请先在「编译叙事内核」中生成内核</button>
+        <div id="genKernelTab1Hint" class="status" style="text-align:left;margin-top:6px;"></div>
+        <div id="genKernelTab1Preview" class="kernel-text" style="display:none;"></div>
+      </div>
+
+      <p style="margin-top:12px;font-size:13px;color:var(--text3);">
+        或 <a href="#" onclick="switchGenKernelSource('manual');return false" style="color:var(--accent);">手动编写内核</a>
+      </p>
+
+      <!-- 手动编写 -->
+      <div id="genKernelManual" style="display:none;">
+        <textarea id="genKernelText" class="kernel-editor" placeholder="在此编写叙事内核…" rows="10"></textarea>
+        <p style="margin-top:6px;font-size:13px;color:var(--text3);">
+          或 <a href="#" onclick="switchGenKernelSource('import_tab1');return false" style="color:var(--accent);">从编译模块导入</a>
+        </p>
+      </div>
+
+      <!-- 生成按钮 -->
+      <button class="btn-primary tts-btn" id="genBtnGenerate" onclick="doGenGenerateNovel()" style="margin-top:20px;">🚀 生成小说</button>
+      <div class="status" id="genGenStatus"></div>
+    </section>
+
+    <!-- 生成进度 -->
+    <section class="card" id="genSectionNovel" style="display:none;">
       <h2>四阶段小说生成</h2>
       <p class="hint">起 · 承 · 转 · 合 — 每个阶段生成完成后自动展开</p>
-      <div id="novelProgress" class="novel-progress">
+      <div id="genNovelProgress" class="novel-progress">
         <span class="stage-dot" data-stage="起">起</span>
         <span class="stage-dot" data-stage="承">承</span>
         <span class="stage-dot" data-stage="转">转</span>
         <span class="stage-dot" data-stage="合">合</span>
       </div>
-      <div id="novelStages"></div>
-      <div id="novelStatus" class="status"></div>
+      <div id="genNovelStages"></div>
+      <div id="genNovelStatus" class="status"></div>
     </section>
 
   </div>
