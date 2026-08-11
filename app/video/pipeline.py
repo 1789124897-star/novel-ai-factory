@@ -1,9 +1,9 @@
-"""视频拼接 — 连接背景片段并叠加混合音频。"""
+"""视频拼接 — 背景片段串连 + 音频叠加。"""
 
 import logging
 import multiprocessing
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from moviepy import (
     AudioFileClip,
@@ -27,7 +27,7 @@ class VideoPipeline:
         self._settings = settings
         self._paths = paths
 
-    # ── 素材收集 ──────────────────────────────────────
+    # ── 素材收集 ─────────────────────────────────────
 
     def _collect_clips(
         self, start_index: int, target_duration: float
@@ -42,54 +42,51 @@ class VideoPipeline:
                 f"{self._paths.video_clip_dir} 中未找到视频片段"
             )
 
-        candidates = all_clips[start_index:]
-        if not candidates:
-            raise ValueError(
-                f"start_index={start_index} 后无可用片段 "
-                f"(total: {len(all_clips)})"
-            )
-
         selected: list[Path] = []
         accumulated = 0.0
+        visited = 0  # 安全上限：最多遍历 200 个片段防止死循环
+        max_visit = max(len(all_clips) * 10, 200)
 
-        for i, clip_path in enumerate(candidates, 1):
+        # 第一遍从 start_index 开始
+        cursor = start_index % len(all_clips)
+
+        while accumulated < target_duration and visited < max_visit:
+            clip_path = all_clips[cursor]
+            visited += 1
             try:
                 with VideoFileClip(str(clip_path)) as clip:
                     if clip.duration <= 0:
+                        cursor = (cursor + 1) % len(all_clips)
                         continue
                     selected.append(clip_path)
                     accumulated += clip.duration
                     logger.info(
-                        "[%d/%d] %s  dur=%.1fs  acc=%.1fs",
-                        i,
-                        len(candidates),
+                        "[%d] %s  dur=%.1fs  acc=%.1fs",
+                        len(selected),
                         clip_path.name,
                         clip.duration,
                         accumulated,
                     )
-                    if accumulated >= target_duration:
-                        break
             except Exception:
                 logger.warning("跳过无法读取的片段: %s", clip_path.name)
+            cursor = (cursor + 1) % len(all_clips)
 
         if not selected:
             raise ValueError("未找到可用的视频片段")
         return selected
 
-    # ── 主流程 ────────────────────────────────────────
+    # ── 主流程 ───────────────────────────────────────
 
     def assemble(
         self,
         audio_path: Path,
         output_path: Path,
         start_index: int = 0,
+        video_paths: Optional[list[Path]] = None,
     ) -> Path:
         """拼接背景片段并叠加音频。
 
-        Args:
-            audio_path: 音频文件路径（mp3）。
-            output_path: 输出 mp4 路径。
-            start_index: 从第几个背景片段开始（0=第一个）。
+        video_paths: 指定背景视频列表，传入后跳过素材收集。
         """
         if not audio_path.exists():
             raise FileNotFoundError(f"音频未找到: {audio_path}")
@@ -98,7 +95,12 @@ class VideoPipeline:
         target_duration = round(audio.duration, 2)
         logger.info("目标音频时长: %.1fs", target_duration)
 
-        clip_paths = self._collect_clips(start_index, target_duration)
+        if video_paths:
+            clip_paths = [p for p in video_paths if p.exists()]
+            if not clip_paths:
+                raise FileNotFoundError("指定的背景视频均不可用")
+        else:
+            clip_paths = self._collect_clips(start_index, target_duration)
         logger.info("已选择 %d 个片段", len(clip_paths))
 
         clips: list[VideoFileClip] = []

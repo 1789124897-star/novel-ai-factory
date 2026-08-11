@@ -1,4 +1,4 @@
-"""应用配置 — 从 .env 加载"""
+"""应用配置。"""
 
 from pathlib import Path
 
@@ -41,7 +41,7 @@ class Settings(BaseSettings):
 
     # ── 水印 ────────────────────────────────────────────────
     WATERMARK_AUTHOR: str = "@作者"
-    WATERMARK_FONT: Path = Path("assets/fonts/Z-SIMHEI.TTF")
+    WATERMARK_FONT: Path = Path("assets/fonts/LXGWWenKai-Regular.ttf")
 
     # ════════════════════════════════════════════════════════
     #  字段校验

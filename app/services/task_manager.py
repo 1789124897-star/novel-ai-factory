@@ -1,4 +1,4 @@
-"""轻量异步任务管理 — 内存存储 + 后台线程，原型用。"""
+"""轻量异步任务管理。"""
 
 import logging
 import threading
@@ -10,16 +10,13 @@ logger = logging.getLogger(__name__)
 
 
 class TaskManager:
-    """后台任务创建、状态查询、生命周期管理。
-    """
+    """后台任务创建、状态查询、生命周期管理。"""
 
     def __init__(self) -> None:
-
         self._tasks: dict[str, dict] = {}
         self._lock = threading.Lock()
 
     def start(self, target: Callable[..., None], *args: Any) -> str:
-
         task_id = str(uuid.uuid4())[:8]
         state: dict[str, Any] = {"status": "running", "error": None}
         with self._lock:

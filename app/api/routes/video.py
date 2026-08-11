@@ -1,12 +1,11 @@
 """视频路由"""
 
-import shutil
 from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Form, HTTPException, UploadFile
 
-from app.services import video_service
+from app.services.video_service import VideoService
 from app.tasks import video_tasks
 
 router = APIRouter(prefix="/api/video", tags=["Video"])
@@ -26,47 +25,42 @@ async def list_clips() -> dict:
 
 @router.post("")
 async def start_video(
+    # ── 音频 ──
     audio_source: str = Form("tts"),
     audio_tts_task_id: str = Form(""),
     audio_file: Optional[UploadFile] = None,
+
+    # ── 字幕 ──
     srt_source: str = Form("tts"),
     srt_tts_task_id: str = Form(""),
     srt_file: Optional[UploadFile] = None,
+
+    # ── 背景视频 ──
+    video_source: str = Form("default"),
+    video_files: list[UploadFile] = [],
+
+    # ── BGM ──
+    bgm_source: str = Form("default"),
     bgm_file: Optional[UploadFile] = None,
+
+    # ── 其他 ──
     watermark_text: str = Form(""),
 ) -> dict:
-    """启动视频制作任务"""
-    upload_dir = video_service.UPLOAD_DIR
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    bgm_path = ""
-
-    # 保存上传文件到 upload_dir
-    if audio_source == "upload" and audio_file:
-        dest = upload_dir / f"audio_{audio_file.filename}"
-        with dest.open("wb") as f:
-            shutil.copyfileobj(audio_file.file, f)
-    if srt_source == "upload" and srt_file:
-        dest = upload_dir / f"srt_{srt_file.filename}"
-        with dest.open("wb") as f:
-            shutil.copyfileobj(srt_file.file, f)
-    if bgm_file:
-        dest = upload_dir / f"bgm_{bgm_file.filename}"
-        with dest.open("wb") as f:
-            shutil.copyfileobj(bgm_file.file, f)
-        bgm_path = str(dest)
-
-    try:
-        task_id = video_tasks.start_task(
-            audio_source=audio_source,
-            audio_tts_task_id=audio_tts_task_id,
-            srt_source=srt_source,
-            srt_tts_task_id=srt_tts_task_id,
-            bgm_path=bgm_path,
-            watermark_text=watermark_text.strip(),
-        )
-        return {"data": {"task_id": task_id}, "message": "ok"}
-    except Exception as e:
-        raise HTTPException(500, str(e))
+    """启动视频制作任务。"""
+    task_id = VideoService.start_video_task(
+        audio_source=audio_source,
+        audio_tts_task_id=audio_tts_task_id,
+        audio_file=audio_file,
+        srt_source=srt_source,
+        srt_tts_task_id=srt_tts_task_id,
+        srt_file=srt_file,
+        video_source=video_source,
+        video_files=video_files,
+        bgm_source=bgm_source,
+        bgm_file=bgm_file,
+        watermark_text=watermark_text.strip(),
+    )
+    return {"data": {"task_id": task_id}, "message": "ok"}
 
 
 @router.get("/{task_id}")

@@ -1,4 +1,4 @@
-"""可配置的 FFmpeg drawtext 水印叠加。"""
+"""FFmpeg drawtext 水印叠加。"""
 
 import logging
 import math
@@ -27,7 +27,7 @@ class Watermark:
         self._settings = settings
         self._paths = paths
 
-    # ── 工具 ──────────────────────────────────────────
+    # ── 工具 ─────────────────────────────────────────
 
     @staticmethod
     def _audio_duration_minutes(audio_path: Path) -> int:
@@ -65,7 +65,7 @@ class Watermark:
             f"fontsize={size}:fontcolor={color_spec}:x={x}:y={y}"
         )
 
-    # ── 主入口 ────────────────────────────────────────
+    # ── 主入口 ───────────────────────────────────────
 
     def apply(
         self,

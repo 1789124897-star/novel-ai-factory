@@ -19,8 +19,6 @@ async def get_prompt_template() -> dict:
         return {"data": {"content": content}, "message": "ok"}
     except FileNotFoundError:
         raise HTTPException(500, "提示词模板文件未找到")
-    except ValueError:
-        raise HTTPException(500, "提示词模板文件为空")
 
 
 @router.post("/kernel")
@@ -47,7 +45,8 @@ async def start_generate(req: GenerateRequest) -> dict:
     """启动四阶段小说生成"""
     try:
         task_id = gen_tasks.start_generation(
-            req.theme, req.kernel,
+            theme=req.theme,
+            kernel=req.kernel,
             target_words=req.target_words,
             custom_prompt=req.custom_prompt,
         )

@@ -219,6 +219,11 @@ document.addEventListener("DOMContentLoaded", () => {
 // ── 视频制作 ───────────────────────────────────────────────
 
 let _videoClipsAvailable = 0;
+let _videoAudioSrc = "tts";
+let _videoSrtSrc = "tts";
+let _videoBgSrc = "default";
+let _videoBgmSrc = "default";
+let _videoBgFiles = [];  // 用户上传的背景视频文件列表
 
 function fetchVideoClipCount() {
   fetch("/api/video/clips")
@@ -233,24 +238,92 @@ function fetchVideoClipCount() {
     });
 }
 
-function switchVideoAudioSource() {
-  const mode = document.getElementById("videoAudioSource").value;
-  document.getElementById("videoAudioUploadField").style.display = mode === "upload" ? "" : "none";
+// ── 音频源 ────────────────────────────────────────────
+
+function switchVideoAudioSource(mode) {
+  _videoAudioSrc = mode;
+  const tabs = document.querySelectorAll("#tabVideo .video-source-tabs")[0].querySelectorAll(".tts-source-tab");
+  tabs.forEach(t => t.classList.remove("active"));
+  event.target.classList.add("active");
+  document.getElementById("videoAudioUpload").style.display = mode === "upload" ? "" : "none";
+  document.getElementById("videoAudioTtsHint").style.display = mode === "tts" ? "" : "none";
+  updateTtsHint("videoAudioTtsHint", _videoAudioSrc);
 }
 
-function switchVideoSrtSource() {
-  const mode = document.getElementById("videoSrtSource").value;
-  document.getElementById("videoSrtUploadField").style.display = mode === "upload" ? "" : "none";
+// ── 字幕源 ────────────────────────────────────────────
+
+function switchVideoSrtSource(mode) {
+  _videoSrtSrc = mode;
+  const tabs = document.querySelectorAll("#tabVideo .video-source-tabs")[1].querySelectorAll(".tts-source-tab");
+  tabs.forEach(t => t.classList.remove("active"));
+  event.target.classList.add("active");
+  document.getElementById("videoSrtUpload").style.display = mode === "upload" ? "" : "none";
+  document.getElementById("videoSrtTtsHint").style.display = mode === "tts" ? "" : "none";
+  updateTtsHint("videoSrtTtsHint", _videoSrtSrc);
 }
 
-function toggleVideoBgm() {
-  const on = document.getElementById("videoBgmToggle").checked;
-  document.getElementById("videoBgmUploadField").style.display = on ? "" : "none";
+function updateTtsHint(elId, srcMode) {
+  if (srcMode !== "tts") return;
+  const hint = document.getElementById(elId);
+  if (_ttsAudioUrl) {
+    hint.className = "tts-hint";
+    hint.style.background = "#eaf7ea";
+    hint.style.borderLeftColor = "var(--green)";
+    hint.textContent = "✅ 已检测到配音产物，可直接生成";
+  } else {
+    hint.className = "tts-hint";
+    hint.style.background = "";
+    hint.style.borderLeftColor = "";
+    hint.textContent = "未检测到配音产物，请先在「Edge TTS 配音」中生成";
+  }
 }
 
-function toggleVideoWatermark() {
-  const on = document.getElementById("videoWatermarkToggle").checked;
-  document.getElementById("videoWatermarkField").style.display = on ? "" : "none";
+// ── 背景视频 ──────────────────────────────────────────
+
+function switchVideoBgSource(mode) {
+  _videoBgSrc = mode;
+  const tabs = document.querySelectorAll("#tabVideo .video-source-tabs")[2].querySelectorAll(".tts-source-tab");
+  tabs.forEach(t => t.classList.remove("active"));
+  event.target.classList.add("active");
+  document.getElementById("videoBgDefault").style.display = mode === "default" ? "" : "none";
+  document.getElementById("videoBgUpload").style.display = mode === "upload" ? "" : "none";
+}
+
+function addVideoBgFile() {
+  const input = document.getElementById("videoBgFileInput");
+  if (!input.files.length) return;
+  for (const f of input.files) {
+    _videoBgFiles.push(f);
+  }
+  renderVideoBgList();
+  input.value = "";
+}
+
+function removeVideoBgFile(index) {
+  _videoBgFiles.splice(index, 1);
+  renderVideoBgList();
+}
+
+function renderVideoBgList() {
+  const list = document.getElementById("videoBgFileList");
+  if (!_videoBgFiles.length) {
+    list.innerHTML = "";
+    return;
+  }
+  list.innerHTML = _videoBgFiles.map((f, i) =>
+    `<li><span>${f.name} (${(f.size / 1024 / 1024).toFixed(1)} MB)</span>` +
+    `<button onclick="removeVideoBgFile(${i})" class="video-file-del">✕</button></li>`
+  ).join("");
+}
+
+// ── BGM ───────────────────────────────────────────────
+
+function switchVideoBgmSource(mode) {
+  _videoBgmSrc = mode;
+  const tabs = document.querySelectorAll("#tabVideo .video-source-tabs")[3].querySelectorAll(".tts-source-tab");
+  tabs.forEach(t => t.classList.remove("active"));
+  event.target.classList.add("active");
+  document.getElementById("videoBgmUpload").style.display = mode === "upload" ? "" : "none";
 }
 
 async function doGenVideo() {
@@ -260,15 +333,15 @@ async function doGenVideo() {
 
   result.style.display = "none";
 
-  if (_videoClipsAvailable === 0) {
+  // 校验背景视频
+  if (_videoBgSrc === "default" && _videoClipsAvailable === 0) {
     status.className = "status error";
-    status.textContent = "assets/videos/ 中没有背景视频片段，请先放入 .mp4 文件";
+    status.textContent = "assets/videos/ 中没有背景视频片段，请先放入 .mp4 文件或切换为上传";
     return;
   }
 
   // 校验音频源
-  const audioSource = document.getElementById("videoAudioSource").value;
-  if (audioSource === "tts" && !_ttsTaskId) {
+  if (_videoAudioSrc === "tts" && !_ttsTaskId) {
     status.className = "status error";
     status.textContent = "请先在「Edge TTS 配音」生成配音，或切换为上传 MP3";
     return;
@@ -280,18 +353,23 @@ async function doGenVideo() {
   status.textContent = "正在提交视频制作任务…";
 
   const form = new FormData();
-  form.append("audio_source", audioSource);
+  form.append("audio_source", _videoAudioSrc);
   form.append("audio_tts_task_id", _ttsTaskId);
-  form.append("srt_source", document.getElementById("videoSrtSource").value);
+  form.append("srt_source", _videoSrtSrc);
   form.append("srt_tts_task_id", _ttsTaskId);
   form.append("watermark_text", document.getElementById("videoWatermarkText").value.trim());
+  form.append("video_source", _videoBgSrc);
+  form.append("bgm_source", _videoBgmSrc);
 
   const audioFile = document.getElementById("videoAudioFile").files[0];
-  if (audioSource === "upload" && audioFile) form.append("audio_file", audioFile);
+  if (_videoAudioSrc === "upload" && audioFile) form.append("audio_file", audioFile);
   const srtFile = document.getElementById("videoSrtFile").files[0];
-  if (document.getElementById("videoSrtSource").value === "upload" && srtFile) form.append("srt_file", srtFile);
+  if (_videoSrtSrc === "upload" && srtFile) form.append("srt_file", srtFile);
   const bgmFile = document.getElementById("videoBgmFile").files[0];
-  if (document.getElementById("videoBgmToggle").checked && bgmFile) form.append("bgm_file", bgmFile);
+  if (_videoBgmSrc === "upload" && bgmFile) form.append("bgm_file", bgmFile);
+  if (_videoBgSrc === "upload" && _videoBgFiles.length) {
+    _videoBgFiles.forEach(f => form.append("video_files", f));
+  }
 
   let taskId = null;
   try {
@@ -311,6 +389,7 @@ async function doGenVideo() {
     try {
       const resp = await fetch("/api/video/" + taskId);
       const data = await resp.json();
+      if (!resp.ok || !data.data) throw new Error(data.message || data.detail || "请求失败");
       const state = data.data;
 
       if (state.status === "done") {
@@ -456,7 +535,9 @@ async function doGenGenerateNovel() {
   container.innerHTML = STAGES.map(name => `
     <div class="stage-panel" id="genStage-${name}">
       <div class="stage-panel-header" onclick="toggleGenStage('${name}')">
-        <span class="icon">▶</span><span>${name} · 第${STAGES.indexOf(name) + 1}阶段</span>
+        <span class="icon">▶</span>
+        <span>${name} · 第${STAGES.indexOf(name) + 1}阶段</span>
+        <span class="stage-word-count"></span>
       </div>
       <div class="stage-panel-body loading">等待生成…</div>
     </div>
@@ -486,8 +567,6 @@ async function doGenGenerateNovel() {
     btn.disabled = false; btn.textContent = "🚀 生成小说"; return;
   }
 
-  const novelStatus = document.getElementById("genNovelStatus");
-  novelStatus.className = "status loading";
   const doneStages = new Set();
 
   status.textContent = "正在生成「起」…";
@@ -507,6 +586,9 @@ async function doGenGenerateNovel() {
           if (!doneStages.has(name) && content) {
             doneStages.add(name);
             const panel = document.getElementById("genStage-" + name);
+            // 更新字数
+            const wordCount = panel.querySelector(".stage-word-count");
+            if (wordCount) wordCount.textContent = content.length + " 字";
             const body = panel.querySelector(".stage-panel-body");
             body.className = "stage-panel-body";
             body.innerHTML = marked.parse(content);
@@ -518,7 +600,6 @@ async function doGenGenerateNovel() {
       if (state.status === "done") {
         clearInterval(interval);
         status.className = "status"; status.textContent = "小说生成完成 ✓";
-        novelStatus.className = "status"; novelStatus.textContent = "";
         progressBar.querySelectorAll(".stage-dot").forEach(d => d.className = "stage-dot done");
         btn.disabled = false; btn.textContent = "🚀 重新生成";
         // 同步到 TTS
@@ -530,7 +611,6 @@ async function doGenGenerateNovel() {
       } else {
         const cur = state.current_stage || STAGES[0];
         status.textContent = "正在生成「" + cur + "」…";
-        novelStatus.textContent = "正在生成「" + cur + "」…";
       }
     } catch (e) {
       clearInterval(interval);
@@ -544,18 +624,12 @@ function toggleGenStage(name) {
   document.getElementById("genStage-" + name).classList.toggle("open");
 }
 
-// 切到视频 Tab 时自动填入 TTS 数据提示
+// 切到视频 Tab 时刷新提示
 const _origSwitchTab = switchTab;
 switchTab = function(tabId) {
   _origSwitchTab(tabId);
   if (tabId === "tabVideo") {
-    const hint = document.getElementById("videoStatus");
-    if (_ttsAudioUrl) {
-      hint.className = "status";
-      hint.textContent = "已检测到 TTS 配音产物，可直接生成视频";
-    } else {
-      hint.className = "status";
-      hint.textContent = "请先在「Edge TTS 配音」生成配音";
-    }
+    updateTtsHint("videoAudioTtsHint", _videoAudioSrc);
+    updateTtsHint("videoSrtTtsHint", _videoSrtSrc);
   }
 };

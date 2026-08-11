@@ -1,8 +1,9 @@
 """叙事内核编译 — 异步任务调度"""
 
 import logging
+from typing import Optional
 
-from app.services.novel_service import compile_kernel
+from app.services.novel_service import NovelCompiler
 from app.services.task_manager import TaskManager
 
 logger = logging.getLogger(__name__)
@@ -24,5 +25,5 @@ def get_compile_status(task_id: str) -> Optional[dict]:
 
 def _do_compile(task_id: str, theme: str) -> None:
     """后台执行内核编译，完成后将结果写入任务状态。"""
-    data = compile_kernel(theme)
+    data = NovelCompiler.compile(theme)
     _task_manager.update(task_id, **data)

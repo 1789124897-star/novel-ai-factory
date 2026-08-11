@@ -32,6 +32,9 @@ def start_task(
     audio_tts_task_id: str = "",
     srt_source: str = "tts",
     srt_tts_task_id: str = "",
+    video_source: str = "default",
+    bg_video_paths: Optional[list[str]] = None,
+    bgm_source: str = "default",
     bgm_path: str = "",
     watermark_text: str = "",
 ) -> str:
@@ -39,7 +42,8 @@ def start_task(
     task_id = _task_manager.start(
         _do_video,
         theme, audio_source, audio_tts_task_id,
-        srt_source, srt_tts_task_id, bgm_path, watermark_text,
+        srt_source, srt_tts_task_id, video_source,
+        bg_video_paths or [], bgm_source, bgm_path, watermark_text,
     )
     logger.info("视频任务已启动 task_id=%s theme=%s", task_id, theme)
     return task_id
@@ -57,10 +61,13 @@ def _do_video(
     audio_tts_task_id: str,
     srt_source: str,
     srt_tts_task_id: str,
+    video_source: str,
+    bg_video_paths: list[str],
+    bgm_source: str,
     bgm_path: str,
     watermark_text: str,
 ) -> None:
-    """后台执行视频制作管线。异常由 TaskManager._wrap 统一捕获。"""
+    """后台执行视频制作管线。"""
     upload_dir = None
     try:
         task_dir = OUTPUT_DIR / task_id
@@ -72,22 +79,35 @@ def _do_video(
         _task_manager.update(task_id, step="解析音频源")
         audio_path = _resolve_audio_path(audio_source, audio_tts_task_id, upload_dir)
         if not audio_path:
-            raise FileNotFoundError("音频源不可用，请先生成 TTS 配音或上传 MP3")
+            raise FileNotFoundError("音频源不可用")
 
-        # 2. BGM 混音（可选）
-        if bgm_path:
+        # 2. BGM 混音
+        resolved_bgm: Path | None = None
+        if bgm_source == "default":
+            default_bgm = ASSETS_DIR / "bgm" / "bgm.mp3"
+            if default_bgm.exists():
+                resolved_bgm = default_bgm
+        elif bgm_source == "upload" and bgm_path:
+            p = Path(bgm_path)
+            if p.exists():
+                resolved_bgm = p
+
+        if resolved_bgm:
             _task_manager.update(task_id, step="BGM 混音")
-            bgm_file = Path(bgm_path)
-            if bgm_file.exists():
-                mixed_path = task_dir / "mixed.mp3"
-                _mix_bgm(audio_path, bgm_file, mixed_path)
-                audio_path = mixed_path
+            mixed_path = task_dir / "mixed.mp3"
+            _mix_bgm(audio_path, resolved_bgm, mixed_path)
+            audio_path = mixed_path
 
         # 3. 视频拼接
         _task_manager.update(task_id, step="拼接背景视频")
         raw_path = task_dir / "raw.mp4"
-        video_pipeline = VideoPipeline(settings, PathConfig.from_settings(settings, theme=theme))
-        video_pipeline.assemble(audio_path=audio_path, output_path=raw_path)
+        paths = PathConfig.from_settings(settings, theme=theme)
+        video_pipeline = VideoPipeline(settings, paths)
+        video_pipeline.assemble(
+            audio_path=audio_path,
+            output_path=raw_path,
+            video_paths=[Path(p) for p in bg_video_paths] if video_source == "upload" and bg_video_paths else None,
+        )
 
         # 4. 字幕渲染（可选）
         srt_path = _resolve_srt_path(srt_source, srt_tts_task_id, upload_dir) if srt_source != "none" else None
@@ -96,7 +116,7 @@ def _do_video(
         if srt_path:
             _task_manager.update(task_id, step="烧录字幕")
             with_sub_path = task_dir / "with_sub.mp4"
-            font = ASSETS_DIR / "fonts" / "Z-SIMHEI.TTF"
+            font = ASSETS_DIR / "fonts" / "LXGWWenKai-Regular.ttf"
             if not font.exists():
                 font = settings.WATERMARK_FONT
             subtitle_renderer = SubtitleRenderer(font_path=font)

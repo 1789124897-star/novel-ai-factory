@@ -5,14 +5,12 @@ from typing import Optional
 
 from app.core.config import settings
 from app.core.paths import PathConfig
-from app.services.novel_gen_service import NovelPrompt, NovelGenerator, STAGES
+from app.services.novel_gen_service import NovelPrompt, NovelGenerator
 from app.services.task_manager import TaskManager
 
 logger = logging.getLogger(__name__)
 
 _task_manager = TaskManager()
-
-_STAGE_NAMES = [s["name"] for s in STAGES]
 
 
 def start_generation(
@@ -46,13 +44,13 @@ def _do_generation(
     custom_prompt: Optional[str],
 ) -> None:
     """后台执行四阶段小说生成，每阶段完成实时更新状态。"""
-    stages: dict[str, str] = {}
+    completed: dict[str, str] = {}
+
+    _after = {"起": "承", "承": "转", "转": "合", "合": "完成"}
 
     def on_stage(name: str, content: str) -> None:
-        stages[name] = content
-        idx = _STAGE_NAMES.index(name)
-        next_stage = _STAGE_NAMES[idx + 1] if idx + 1 < len(_STAGE_NAMES) else "完成"
-        _task_manager.update(task_id, current_stage=next_stage, stages=dict(stages))
+        completed[name] = content
+        _task_manager.update(task_id, current_stage=_after[name], stages=dict(completed))
         logger.info("阶段 [%s] 完成，字数=%d", name, len(content))
 
     _task_manager.update(task_id, current_stage="起")

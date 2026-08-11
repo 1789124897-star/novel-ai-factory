@@ -1,9 +1,4 @@
-"""分阶段小说生成服务 — prompt 构建 + 四阶段生成引擎。
-
-核心算法：
-1. 以叙事内核为锚点，注入基础 prompt 模板，组装每阶段提示词。
-2. 每阶段调用 LLM 一次，传入所有已生成的前文作为上下文。
-"""
+"""分阶段小说生成 — prompt 构建 + 四阶段引擎。"""
 
 import logging
 import time
@@ -18,31 +13,27 @@ from app.core.paths import PathConfig
 
 logger = logging.getLogger(__name__)
 
-# ── 阶段定义 ─────────────────────────────────────────────────
+# ── 阶段定义 ────────────────────────────────────────────
 
 STAGES = [
     {
         "name": "起",
-        "chapter_range": "第1–2章",
-        "word_hint": "1400–1600",
+        "ratio": 0.19,
         "task": "氛围建立、预言出现、空间首次异常、信物登场、不可靠叙事启动",
     },
     {
         "name": "承",
-        "chapter_range": "第3–6章",
-        "word_hint": "2800–3000",
+        "ratio": 0.36,
         "task": "迷恋滋生、自我欺骗、双男主介入、线索增殖但不解释",
     },
     {
         "name": "转",
-        "chapter_range": "第7–9章",
-        "word_hint": "2000–2200",
+        "ratio": 0.26,
         "task": "偏执爆发、认知崩塌、局部真相拼接、关键反转",
     },
     {
         "name": "合",
-        "chapter_range": "第10–11章",
-        "word_hint": "1400–1600",
+        "ratio": 0.19,
         "task": "同化完成、双男主退场、新闯入者、宿命闭环",
     },
 ]
@@ -59,12 +50,18 @@ _SYSTEM_PROMPT = (
 )
 
 
-# ── Prompt 构建器 ────────────────────────────────────────────
+# ── Prompt 构建器 ───────────────────────────────────────
 
 class NovelPrompt:
-    """组装每阶段 prompt，以不可变叙事内核为锚点。"""
+    """组装每阶段 prompt，以叙事内核为锚点。"""
 
-    def __init__(self, theme: str, paths: PathConfig, kernel: str, custom_prompt: Optional[str] = None):
+    def __init__(
+        self,
+        theme: str,
+        paths: PathConfig,
+        kernel: str,
+        custom_prompt: Optional[str] = None
+    ) -> None:
         self.theme = theme
         self.kernel_text = kernel
         if custom_prompt and custom_prompt.strip():
@@ -79,22 +76,14 @@ class NovelPrompt:
         target_words: int = 8000,
     ) -> str:
         """构建单阶段完整 prompt。"""
-        # 按 target_words 等比例缩放各阶段字数范围
-        stage_low, stage_high = self._parse_range(stage_info["word_hint"])
-        total_low = sum(self._parse_range(s["word_hint"])[0] for s in STAGES)
-        total_high = sum(self._parse_range(s["word_hint"])[1] for s in STAGES)
-        ratio = target_words / ((total_low + total_high) / 2)
-        low = max(50, int(stage_low * ratio))
-        high = max(100, int(stage_high * ratio))
-        word_req = f"{low}–{high}"
+        word = max(100, int(target_words * stage_info["ratio"]))
 
         prompt_parts = [
             f"【不可违背的叙事内核锚点】\n{self.kernel_text}",
             "所有情节、人物动机、预言、核心事件、信物、空间异常等必须严格与以上内核一致，不得任何改动或偏离。",
             self._base.format(theme=self.theme),
             f"【当前写作阶段】{stage_info['name']}",
-            f"【章节范围】{stage_info['chapter_range']}",
-            f"【本阶段严格字数要求】必须控制在{word_req}字（纯中文字符，不计标点空格）。",
+            f"【本阶段严格字数要求】必须控制在{word}字（纯中文字符，不计标点空格）。",
             f"【核心任务】{stage_info['task']}",
         ]
 
@@ -116,12 +105,6 @@ class NovelPrompt:
         return "\n\n".join(prompt_parts)
 
     @staticmethod
-    def _parse_range(word_hint: str) -> tuple[int, int]:
-        """从 '1400–1600' 解析为 (1400, 1600)。"""
-        parts = word_hint.replace("–", "-").split("-")
-        return int(parts[0]), int(parts[1])
-
-    @staticmethod
     def _load_base_prompt(paths: PathConfig) -> str:
         prompt_path: Path = paths.theme_novel_prompt
         if not prompt_path.exists():
@@ -132,7 +115,7 @@ class NovelPrompt:
         return content
 
 
-# ── 生成引擎 ─────────────────────────────────────────────────
+# ── 生成引擎 ────────────────────────────────────────────
 
 class NovelGenerator:
     """编排四阶段小说生成。"""
@@ -185,7 +168,6 @@ class NovelGenerator:
         on_stage_complete: Optional[Callable[[str, str], None]] = None,
     ) -> str:
         """完整四阶段生成流程。"""
-
         logger.info("开始分阶段小说生成（目标 ~%d 字）", target_words)
 
         full_content = ""
@@ -198,6 +180,7 @@ class NovelGenerator:
 
             full_content += stage_content + "\n\n"
             self.paths.part_file(idx).write_text(stage_content, encoding="utf-8")
+
             if on_stage_complete:
                 on_stage_complete(stage["name"], stage_content)
             logger.info("  完成 — %d 字", len(stage_content))

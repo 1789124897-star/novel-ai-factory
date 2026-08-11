@@ -1,4 +1,4 @@
-"""日志配置 — 在 ``main()`` 中调用一次即可。"""
+"""日志配置。"""
 
 import logging
 import sys

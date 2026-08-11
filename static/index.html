@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>小说AI工厂</title>
-<link rel="stylesheet" href="/static/css/style.css?v=3">
+<link rel="stylesheet" href="/static/css/style.css?v=5">
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
@@ -212,70 +212,66 @@
       <p class="hint">从 TTS 配音产物或本地文件合成带字幕的视频</p>
 
       <!-- 音频源 -->
-      <div class="video-source-group">
-        <div class="field" style="flex:2;">
-          <label>音频源</label>
-          <select id="videoAudioSource" onchange="switchVideoAudioSource()">
-            <option value="tts">🎙️ 从 TTS 配音获取</option>
-            <option value="upload">📁 上传 MP3 文件</option>
-          </select>
+      <div class="video-section">
+        <h3>音频源</h3>
+        <div class="tts-source-tabs video-source-tabs">
+          <button class="tts-source-tab active" onclick="switchVideoAudioSource('tts')">📀 从配音导入</button>
+          <button class="tts-source-tab" onclick="switchVideoAudioSource('upload')">📁 上传 MP3</button>
         </div>
-        <div class="field" id="videoAudioUploadField" style="display:none;">
-          <label>&nbsp;</label>
+        <div id="videoAudioTtsHint" class="tts-hint">未检测到配音产物，请先在「Edge TTS 配音」中生成</div>
+        <div id="videoAudioUpload" style="display:none;">
           <input type="file" id="videoAudioFile" accept=".mp3">
         </div>
       </div>
 
-      <!-- SRT 字幕源 -->
-      <div class="video-source-group">
-        <div class="field" style="flex:2;">
-          <label>字幕源</label>
-          <select id="videoSrtSource" onchange="switchVideoSrtSource()">
-            <option value="tts">📝 从 TTS 配音获取</option>
-            <option value="upload">📁 上传 SRT 文件</option>
-            <option value="none">🚫 不加字幕</option>
-          </select>
+      <!-- 字幕源 -->
+      <div class="video-section">
+        <h3>字幕源</h3>
+        <div class="tts-source-tabs video-source-tabs">
+          <button class="tts-source-tab active" onclick="switchVideoSrtSource('tts')">📀 从配音导入</button>
+          <button class="tts-source-tab" onclick="switchVideoSrtSource('upload')">📁 上传 SRT</button>
+          <button class="tts-source-tab" onclick="switchVideoSrtSource('none')">🚫 无字幕</button>
         </div>
-        <div class="field" id="videoSrtUploadField" style="display:none;">
-          <label>&nbsp;</label>
+        <div id="videoSrtTtsHint" class="tts-hint">未检测到配音产物，请先在「Edge TTS 配音」中生成</div>
+        <div id="videoSrtUpload" style="display:none;">
           <input type="file" id="videoSrtFile" accept=".srt">
         </div>
       </div>
 
-      <!-- BGM -->
-      <div class="video-source-group">
-        <div class="field" style="flex:1;">
-          <label>BGM（可选）</label>
-          <div class="checkbox-row">
-            <input type="checkbox" id="videoBgmToggle" onchange="toggleVideoBgm()">
-            <label for="videoBgmToggle" class="checkbox-label">混入背景音乐</label>
-          </div>
+      <!-- 背景视频 -->
+      <div class="video-section">
+        <h3>背景视频</h3>
+        <div class="tts-source-tabs video-source-tabs">
+          <button class="tts-source-tab active" onclick="switchVideoBgSource('default')">🎬 默认素材</button>
+          <button class="tts-source-tab" onclick="switchVideoBgSource('upload')">📁 上传视频</button>
         </div>
-        <div class="field" id="videoBgmUploadField" style="display:none;">
-          <label>&nbsp;</label>
+        <div id="videoBgDefault" class="video-asset-info">
+          <span>📂 素材片段：</span>
+          <span id="videoClipCount" class="video-asset-count">检测中…</span>
+        </div>
+        <div id="videoBgUpload" style="display:none;">
+          <div class="video-upload-row">
+            <input type="file" id="videoBgFileInput" accept=".mp4,.avi,.mov" onchange="addVideoBgFile()">
+          </div>
+          <ul id="videoBgFileList" class="video-file-list"></ul>
+        </div>
+      </div>
+
+      <!-- BGM -->
+      <div class="video-section">
+        <h3>BGM（可选）</h3>
+        <div class="tts-source-tabs video-source-tabs">
+          <button class="tts-source-tab active" onclick="switchVideoBgmSource('default')">🎵 默认 BGM</button>
+          <button class="tts-source-tab" onclick="switchVideoBgmSource('upload')">📁 上传 BGM</button>
+          <button class="tts-source-tab" onclick="switchVideoBgmSource('none')">🔇 无 BGM</button>
+        </div>
+        <div id="videoBgmUpload" style="display:none;">
           <input type="file" id="videoBgmFile" accept=".mp3,.wav">
         </div>
       </div>
-
-      <!-- 水印 -->
-      <div class="video-source-group">
-        <div class="field" style="flex:1;">
-          <label>片尾水印</label>
-          <div class="checkbox-row">
-            <input type="checkbox" id="videoWatermarkToggle" onchange="toggleVideoWatermark()">
-            <label for="videoWatermarkToggle" class="checkbox-label">添加水印署名</label>
-          </div>
-        </div>
-        <div class="field" id="videoWatermarkField" style="display:none;flex:2;">
-          <label>署名文字</label>
-          <input type="text" id="videoWatermarkText" placeholder="@作者" maxlength="30">
-        </div>
-      </div>
-
-      <!-- 素材信息 -->
-      <div class="video-asset-info">
-        <span>📂 背景视频素材：</span>
-        <span id="videoClipCount" class="video-asset-count">检测中…</span>
+      <div class="video-section">
+        <h3>片尾水印（可选）</h3>
+        <input type="text" id="videoWatermarkText" placeholder="@作者" maxlength="30">
       </div>
 
       <!-- 生成按钮 -->
@@ -302,6 +298,6 @@
 
 </div>
 
-<script src="/static/js/app.js?v=3"></script>
+<script src="/static/js/app.js?v=6"></script>
 </body>
 </html>

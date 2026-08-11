@@ -283,6 +283,7 @@ body {
 }
 .stage-panel-header:hover { background: #f0ede6; }
 .stage-panel-header .icon { font-size: 12px; color: var(--text3); transition: transform .2s; }
+.stage-word-count { margin-left: auto; font-size: 12px; color: var(--text3); font-weight: 400; }
 .stage-panel.open .stage-panel-header .icon { transform: rotate(90deg); }
 .stage-panel-body {
   display: none;
@@ -449,33 +450,32 @@ body {
 
 /* ── Video tab ─────────────────────────────────────────── */
 
-.video-source-group {
-  display: flex;
-  gap: 12px;
-  align-items: flex-end;
-  margin-bottom: 14px;
+.video-section {
+  margin-bottom: 20px;
 }
-.video-source-group .field { min-width: 140px; }
-
-.checkbox-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 0;
-}
-.checkbox-row input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--accent);
-  cursor: pointer;
-}
-.checkbox-label {
+.video-section h3 {
   font-size: 13px;
+  font-weight: 600;
+  color: var(--text2);
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+.video-section input[type="file"],
+.video-section input[type="text"] {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
   color: var(--text);
-  font-weight: 400;
-  text-transform: none;
-  letter-spacing: 0;
-  cursor: pointer;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+}
+.video-section input[type="text"]:focus { border-color: var(--accent); }
+
+.video-source-tabs {
+  margin-bottom: 12px;
 }
 
 .video-asset-info {
@@ -493,6 +493,36 @@ body {
   font-weight: 600;
   color: var(--accent);
 }
+
+.video-upload-row {
+  margin-bottom: 8px;
+}
+.video-file-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.video-file-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  margin-bottom: 4px;
+  background: var(--bg);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--text);
+}
+.video-file-del {
+  background: none;
+  border: none;
+  color: var(--red);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+.video-file-del:hover { background: #fce4e4; }
 
 /* ── 小说生成 Tab ──────────────────────────────────────── */
 

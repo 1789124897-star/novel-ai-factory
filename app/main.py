@@ -11,17 +11,14 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 
-# ═══════════════════════════════════════════════════════════════
-#  bootstrap
-# ═══════════════════════════════════════════════════════════════
+# ── bootstrap ──────────────────────────────────────────
 
 def _bootstrap(theme: str = ""):
-    """创建 Settings + PathConfig + 日志配置。每次 CLI 调用执行一次。"""
+    """初始化配置与日志，每次 CLI 调用执行一次。"""
     from app.core.config import settings
     from app.core.logging import setup_logging
     from app.core.paths import PathConfig
@@ -31,13 +28,11 @@ def _bootstrap(theme: str = ""):
     return settings, paths
 
 
-# ═══════════════════════════════════════════════════════════════
-#  子命令处理器
-# ═══════════════════════════════════════════════════════════════
+# ── 子命令处理器 ──────────────────────────────────────
 
 def _cmd_novel(args: argparse.Namespace) -> int:
-    """``novel`` 子命令 — 编译内核 + 生成小说。"""
-    from app.services import novel_service
+    """编译内核 + 生成小说。"""
+    from app.services.novel_service import NovelCompiler
     from app.services.novel_gen_service import NovelGenerator
     from app.services.novel_gen_service import NovelPrompt
 
@@ -48,7 +43,7 @@ def _cmd_novel(args: argparse.Namespace) -> int:
     print(f"\n{'='*60}")
     print(f"  🔮 编译叙事内核：{theme}")
     print(f"{'='*60}")
-    data = novel_service.compile_kernel(theme)
+    data = NovelCompiler.compile(theme)
     kernel = data["kernel"]
     print(f"  ✓ 内核已保存 → {data['kernel_path']}")
 
@@ -65,19 +60,11 @@ def _cmd_novel(args: argparse.Namespace) -> int:
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
-    """``run`` 子命令 — 全流程端到端，一次 bootstrap。"""
-    from app.core.config import settings
-    from app.core.logging import setup_logging
-    from app.core.paths import PathConfig
-    from app.services import novel_service
-    from app.services.novel_gen_service import NovelGenerator
-    from app.services.novel_gen_service import NovelPrompt
+    """全流程端到端。"""
     from app.pipeline.stage import Stage
 
     theme = args.theme or ""
-
-    setup_logging(settings)
-    paths = PathConfig.from_settings(settings, theme=theme)
+    _settings, paths = _bootstrap(theme)
 
     if args.stages:
         try:
@@ -107,8 +94,10 @@ def _cmd_run(args: argparse.Namespace) -> int:
     kernel = None
 
     if Stage.COMPILE in stage_set:
+        from app.services.novel_service import NovelCompiler
+
         print(f"\n  🔮 编译叙事内核 …")
-        data = novel_service.compile_kernel(theme)
+        data = NovelCompiler.compile(theme)
         kernel = data["kernel"]
         print(f"  ✓ 内核已保存 → {data['kernel_path']}")
 
@@ -121,8 +110,10 @@ def _cmd_run(args: argparse.Namespace) -> int:
                 return 1
 
         print(f"\n  📖 四阶段小说生成 (起·承·转·合)")
+        from app.services.novel_gen_service import NovelGenerator, NovelPrompt
+
         prompt = NovelPrompt(theme, paths, kernel)
-        generator = NovelGenerator(prompt, paths, settings)
+        generator = NovelGenerator(prompt, paths, _settings)
         novel_text = generator.generate_novel(target_words=getattr(args, "target_words", 8000))
         paths.novel_output.write_text(novel_text, encoding="utf-8")
         print(f"  ✅ 小说完成 — {len(novel_text)} 字 → {paths.novel_output}")
@@ -161,9 +152,7 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-# ═══════════════════════════════════════════════════════════════
-#  入口
-# ═══════════════════════════════════════════════════════════════
+# ── 入口 ───────────────────────────────────────────────
 
 _HANDLERS = {
     "novel": _cmd_novel,

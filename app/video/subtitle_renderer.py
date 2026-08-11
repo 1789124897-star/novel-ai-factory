@@ -1,4 +1,4 @@
-"""使用 Pillow + MoviePy 将 SRT 字幕叠加到视频上。"""
+"""Pillow + MoviePy SRT 字幕叠加。"""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ class SubtitleRenderer:
         self,
         font_path: Path,
         font_size: int = 40,
-        stroke_width: int = 2,
+        stroke_width: int = 0,
         subtitle_y_ratio: float = 0.3,
     ):
         if not font_path.exists():
@@ -33,7 +33,7 @@ class SubtitleRenderer:
         self._video: VideoFileClip | None = None
         self._sub_clips: list[ImageClip] = []
 
-    # ── SRT 解析 ──────────────────────────────────────
+    # ── SRT 解析 ─────────────────────────────────────
 
     @staticmethod
     def _time_to_seconds(t: str) -> float:
@@ -60,7 +60,7 @@ class SubtitleRenderer:
         logger.info("已解析 %d 条字幕", len(subtitles))
         return subtitles
 
-    # ── 文字渲染 ──────────────────────────────────────
+    # ── 文字渲染 ─────────────────────────────────────
 
     def _wrap_text(self, text: str, max_width: int) -> list[str]:
         lines = []
@@ -100,7 +100,7 @@ class SubtitleRenderer:
             y += line_height
         return np.array(img)
 
-    # ── 渲染 ──────────────────────────────────────────
+    # ── 渲染 ─────────────────────────────────────────
 
     def render(self, video_path: Path, srt_path: Path, output_path: Path) -> Path:
         if not video_path.exists():

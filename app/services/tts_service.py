@@ -24,49 +24,53 @@ TICKS_PER_SEC = 10_000_000
 OUTPUT_DIR = Path(__file__).resolve().parent.parent.parent / "output" / "tts"
 
 
-def output_url(rel_path: str) -> str:
-    """output 目录下的文件 → 前端可访问 URL"""
-    return f"/output/tts/{rel_path}"
+# ── 公开 API ──────────────────────────────────────────
 
+class TTSService:
+    """Edge TTS 语音合成服务。"""
 
-async def _synthesize(task_id: str, text: str, voice: str, rate: str) -> dict:
-    """edge-tts 流式合成 → 写音频 + SRT，返回结果 dict。"""
-    task_dir = OUTPUT_DIR / task_id
-    task_dir.mkdir(parents=True, exist_ok=True)
-    audio_path = task_dir / "voice.mp3"
-    srt_path = task_dir / "subtitle.srt"
+    @staticmethod
+    def output_url(rel_path: str) -> str:
+        """output 目录下的文件 → 前端可访问 URL"""
+        return f"/output/tts/{rel_path}"
 
-    communicate = edge_tts.Communicate(text=text, voice=voice, rate=rate)
-    audio_bytes = bytearray()
-    boundaries: list[dict] = []
+    @staticmethod
+    async def synthesize(task_id: str, text: str, voice: str, rate: str) -> dict:
+        """edge-tts 流式合成 → 写音频 + SRT，返回结果 dict。"""
+        task_dir = OUTPUT_DIR / task_id
+        task_dir.mkdir(parents=True, exist_ok=True)
+        audio_path = task_dir / "voice.mp3"
+        srt_path = task_dir / "subtitle.srt"
 
-    async for chunk in communicate.stream():
-        if chunk["type"] == "audio":
-            audio_bytes.extend(chunk["data"])
-        elif chunk["type"] == "SentenceBoundary":
-            boundaries.append({
-                "offset": chunk["offset"],
-                "duration": chunk["duration"],
-                "text": chunk["text"],
-            })
+        communicate = edge_tts.Communicate(text=text, voice=voice, rate=rate)
+        audio_bytes = bytearray()
+        boundaries: list[dict] = []
 
-    if not audio_bytes:
-        raise RuntimeError("TTS 未返回音频数据")
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                audio_bytes.extend(chunk["data"])
+            elif chunk["type"] == "SentenceBoundary":
+                boundaries.append({
+                    "offset": chunk["offset"],
+                    "duration": chunk["duration"],
+                    "text": chunk["text"],
+                })
 
-    audio_path.write_bytes(audio_bytes)
+        if not audio_bytes:
+            raise RuntimeError("TTS 未返回音频数据")
 
-    # 生成 SRT
-    duration_sec = _write_srt(boundaries, srt_path)
+        audio_path.write_bytes(audio_bytes)
+        duration_sec = _write_srt(boundaries, srt_path)
 
-    logger.info(
-        "TTS 完成 task=%s duration=%.1fs path=%s",
-        task_id, duration_sec, audio_path,
-    )
-    return {
-        "audio_url": output_url(f"{task_id}/voice.mp3"),
-        "srt_url": output_url(f"{task_id}/subtitle.srt"),
-        "duration_sec": round(duration_sec, 1),
-    }
+        logger.info(
+            "TTS 完成 task=%s duration=%.1fs path=%s",
+            task_id, duration_sec, audio_path,
+        )
+        return {
+            "audio_url": TTSService.output_url(f"{task_id}/voice.mp3"),
+            "srt_url": TTSService.output_url(f"{task_id}/subtitle.srt"),
+            "duration_sec": round(duration_sec, 1),
+        }
 
 
 # ── SRT 生成 ─────────────────────────────────────────────────
@@ -164,3 +168,9 @@ def _format_srt(seconds: float) -> str:
     s = int(seconds % 60)
     ms = int((seconds - int(seconds)) * 1000)
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+
+# ── 模块别名（兼容旧导入路径） ──────────────────────
+
+output_url = TTSService.output_url
+_synthesize = TTSService.synthesize
