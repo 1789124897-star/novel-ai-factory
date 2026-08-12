@@ -1,6 +1,7 @@
 """视频制作 — 异步任务调度"""
 
 import logging
+import multiprocessing
 import shutil
 from pathlib import Path
 from typing import Optional
@@ -9,16 +10,13 @@ from app.core.config import settings
 from app.core.paths import PathConfig
 from app.services.task_manager import TaskManager
 from app.services.video_service import (
-    OUTPUT_DIR,
-    ASSETS_DIR,
+    VideoService,
     _resolve_audio_path,
     _resolve_srt_path,
     _mix_bgm,
-    output_url,
 )
-from app.video.pipeline import VideoPipeline
-from app.video.subtitle_renderer import SubtitleRenderer
-from app.video.watermark import Watermark
+from app.video import SubtitleRenderer, VideoPipeline, Watermark
+from moviepy import CompositeVideoClip, ImageClip
 
 logger = logging.getLogger(__name__)
 
@@ -41,9 +39,16 @@ def start_task(
     """启动后台视频制作任务，返回 task_id。"""
     task_id = _task_manager.start(
         _do_video,
-        theme, audio_source, audio_tts_task_id,
-        srt_source, srt_tts_task_id, video_source,
-        bg_video_paths or [], bgm_source, bgm_path, watermark_text,
+        theme, 
+        audio_source, 
+        audio_tts_task_id,
+        srt_source, 
+        srt_tts_task_id, 
+        video_source,
+        bg_video_paths or [], 
+        bgm_source, 
+        bgm_path, 
+        watermark_text,
     )
     logger.info("视频任务已启动 task_id=%s theme=%s", task_id, theme)
     return task_id
@@ -70,21 +75,22 @@ def _do_video(
     """后台执行视频制作管线。"""
     upload_dir = None
     try:
-        task_dir = OUTPUT_DIR / task_id
+        paths = PathConfig.from_settings(settings, theme=theme)
+        task_dir = paths.video_output / task_id
         task_dir.mkdir(parents=True, exist_ok=True)
         upload_dir = task_dir / "_uploads"
         upload_dir.mkdir(exist_ok=True)
 
         # 1. 解析音频
         _task_manager.update(task_id, step="解析音频源")
-        audio_path = _resolve_audio_path(audio_source, audio_tts_task_id, upload_dir)
+        audio_path = _resolve_audio_path(audio_source, audio_tts_task_id, upload_dir, paths.tts_output)
         if not audio_path:
             raise FileNotFoundError("音频源不可用")
 
         # 2. BGM 混音
-        resolved_bgm: Path | None = None
+        resolved_bgm: Optional[Path] = None
         if bgm_source == "default":
-            default_bgm = ASSETS_DIR / "bgm" / "bgm.mp3"
+            default_bgm = paths.bgm_path
             if default_bgm.exists():
                 resolved_bgm = default_bgm
         elif bgm_source == "upload" and bgm_path:
@@ -98,47 +104,52 @@ def _do_video(
             _mix_bgm(audio_path, resolved_bgm, mixed_path)
             audio_path = mixed_path
 
-        # 3. 视频拼接
+        # 3. 视频拼接（内存）
         _task_manager.update(task_id, step="拼接背景视频")
-        raw_path = task_dir / "raw.mp4"
-        paths = PathConfig.from_settings(settings, theme=theme)
         video_pipeline = VideoPipeline(settings, paths)
-        video_pipeline.assemble(
+        video_clip = video_pipeline.assemble(
             audio_path=audio_path,
-            output_path=raw_path,
             video_paths=[Path(p) for p in bg_video_paths] if video_source == "upload" and bg_video_paths else None,
         )
 
-        # 4. 字幕渲染（可选）
-        srt_path = _resolve_srt_path(srt_source, srt_tts_task_id, upload_dir) if srt_source != "none" else None
-        current_video = raw_path
+        # 4. 收集字幕 + 水印叠加层（内存）
+        overlay_clips: list[ImageClip] = []
 
+        srt_path = _resolve_srt_path(srt_source, srt_tts_task_id, upload_dir, paths.tts_output) if srt_source != "none" else None
         if srt_path:
             _task_manager.update(task_id, step="烧录字幕")
-            with_sub_path = task_dir / "with_sub.mp4"
-            font = ASSETS_DIR / "fonts" / "LXGWWenKai-Regular.ttf"
-            if not font.exists():
-                font = settings.WATERMARK_FONT
-            subtitle_renderer = SubtitleRenderer(font_path=font)
-            subtitle_renderer.render(video_path=current_video, srt_path=srt_path, output_path=with_sub_path)
-            current_video = with_sub_path
+            subtitle_renderer = SubtitleRenderer(settings, paths)
+            overlay_clips.extend(subtitle_renderer.build_sub_clips(srt_path, video_clip.size))
 
-        # 5. 水印叠加（可选）
         if watermark_text:
             _task_manager.update(task_id, step="添加水印")
-            final_path = task_dir / "final.mp4"
-            watermark = Watermark(settings, PathConfig.from_settings(settings, theme=theme))
-            watermark.apply(
-                input_path=current_video,
-                output_path=final_path,
+            watermark = Watermark(settings, paths)
+            overlay_clips.extend(watermark.build_overlay_clips(
+                video_clip.size,
                 author=watermark_text,
                 theme=theme,
                 audio_path=audio_path,
-            )
-            current_video = final_path
+            ))
 
-        _task_manager.update(task_id, step="完成", video_url=output_url(f"{task_id}/{current_video.name}"))
-        logger.info("视频任务完成 task_id=%s output=%s", task_id, current_video)
+        # 5. 统一编码
+        _task_manager.update(task_id, step="编码输出")
+        output_path = task_dir / "final.mp4"
+        final = CompositeVideoClip([video_clip, *overlay_clips], size=video_clip.size)
+
+        threads = max(1, multiprocessing.cpu_count() // 2)
+        logger.info("正在导出视频 (%d 线程) …", threads)
+        final.write_videofile(
+            str(output_path),
+            codec="libx264",
+            audio_codec="aac",
+            fps=24,
+            preset="ultrafast",
+            threads=threads,
+        )
+        logger.info("视频已保存 → %s", output_path)
+
+        _task_manager.update(task_id, step="完成", video_url=VideoService.output_url(f"{task_id}/final.mp4"))
+        logger.info("视频任务完成 task_id=%s", task_id)
 
     finally:
         if upload_dir and upload_dir.exists():

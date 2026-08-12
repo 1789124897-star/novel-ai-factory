@@ -8,6 +8,9 @@ from typing import Optional
 
 import edge_tts
 
+from app.core.config import settings
+from app.core.paths import PathConfig
+
 logger = logging.getLogger(__name__)
 
 # Edge TTS WebSocket 服务不走代理
@@ -18,10 +21,6 @@ DEFAULT_VOICE = "zh-CN-XiaoxiaoNeural"
 DEFAULT_RATE = "+0%"
 
 TICKS_PER_SEC = 10_000_000
-
-# ── 输出目录 ─────────────────────────────────────────────────
-
-OUTPUT_DIR = Path(__file__).resolve().parent.parent.parent / "output" / "tts"
 
 
 # ── 公开 API ──────────────────────────────────────────
@@ -37,7 +36,7 @@ class TTSService:
     @staticmethod
     async def synthesize(task_id: str, text: str, voice: str, rate: str) -> dict:
         """edge-tts 流式合成 → 写音频 + SRT，返回结果 dict。"""
-        task_dir = OUTPUT_DIR / task_id
+        task_dir = PathConfig.from_settings(settings, theme="").tts_output / task_id
         task_dir.mkdir(parents=True, exist_ok=True)
         audio_path = task_dir / "voice.mp3"
         srt_path = task_dir / "subtitle.srt"
@@ -169,8 +168,4 @@ def _format_srt(seconds: float) -> str:
     ms = int((seconds - int(seconds)) * 1000)
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
-
-# ── 模块别名（兼容旧导入路径） ──────────────────────
-
-output_url = TTSService.output_url
 _synthesize = TTSService.synthesize

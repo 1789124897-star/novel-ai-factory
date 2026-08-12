@@ -1,29 +1,21 @@
-"""FFmpeg drawtext 水印叠加。"""
+"""MoviePy + Pillow 水印叠加。"""
 
-import logging
 import math
-import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
-if TYPE_CHECKING:
-    from ..core.config import Settings
-    from ..core.paths import PathConfig
+import numpy as np
+from moviepy import AudioFileClip, ImageClip
+from PIL import Image, ImageDraw, ImageFont
 
-logger = logging.getLogger(__name__)
-
-
-def _escape_ffmpeg_text(text: str) -> str:
-    """转义 FFmpeg drawtext 过滤器值中的特殊字符。"""
-    return text.replace("\\", "\\\\").replace("'", "\\'").replace(":", "\\:").replace("%", "\\%")
+from ..core.config import Settings
+from ..core.paths import PathConfig
 
 
 class Watermark:
-    """通过 FFmpeg drawtext 过滤器叠加多层文字水印。"""
+    """叠加多层文字水印。"""
 
-    FFMPEG_TIMEOUT = 300  # 秒
-
-    def __init__(self, settings: "Settings", paths: "PathConfig"):
+    def __init__(self, settings: Settings, paths: PathConfig):
         self._settings = settings
         self._paths = paths
 
@@ -31,119 +23,73 @@ class Watermark:
 
     @staticmethod
     def _audio_duration_minutes(audio_path: Path) -> int:
-        """通过 ffprobe 获取音频向上取整的分钟数（避免完整解码）。"""
+        """获取音频向上取整的分钟数。"""
+        audio = AudioFileClip(str(audio_path))
         try:
-            result = subprocess.run(
-                [
-                    "ffprobe", "-v", "error",
-                    "-show_entries", "format=duration",
-                    "-of", "default=noprint_wrappers=1:nokey=1",
-                    str(audio_path),
-                ],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                seconds = float(result.stdout.strip())
-                return math.ceil(seconds / 60)
-        except (subprocess.TimeoutExpired, ValueError, FileNotFoundError):
-            logger.warning("ffprobe 失败 — 降级使用 pydub")
-        # 降级
-        from pydub import AudioSegment  # noqa: PLC0415
-        audio = AudioSegment.from_file(audio_path)
-        return math.ceil(len(audio) / 1000 / 60)
+            return math.ceil(audio.duration / 60)
+        finally:
+            audio.close()
 
-    def _drawtext(
-        self, text: str, size: int, color: str, x: str, y: str, alpha: float = 1.0
-    ) -> str:
-        color_spec = f"{color}@{alpha}" if alpha < 1.0 else color
-        font = _escape_ffmpeg_text(str(self._paths.font_path))
-        text_safe = _escape_ffmpeg_text(text)
-        return (
-            f"drawtext=fontfile='{font}':text='{text_safe}':"
-            f"fontsize={size}:fontcolor={color_spec}:x={x}:y={y}"
-        )
+    def _render_text(self, text: str, font_size: int, color: str, alpha: float = 1.0) -> np.ndarray:
+        """渲染单行文字为 RGBA numpy 数组。"""
+        font = ImageFont.truetype(str(self._paths.font_path), font_size)
+        left, top, right, bottom = font.getbbox(text)
 
-    # ── 主入口 ───────────────────────────────────────
+        r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
+        fill = (r, g, b, int(255 * alpha))
 
-    def apply(
+        pad = 10
+        img = Image.new("RGBA", (right - left + pad, bottom - top + pad), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        draw.text((pad // 2 - left, pad // 2 - top), text, font=font, fill=fill)
+        return np.array(img)
+
+    def _overlay(self, text: str, font_size: int, color: str, position: tuple, alpha: float = 1.0) -> ImageClip:
+        """渲染文字并返回定位好的 ImageClip。"""
+        img = self._render_text(text, font_size, color, alpha)
+        return ImageClip(img).with_position(position)
+
+    # ── 构建叠加层 ───────────────────────────────────
+
+    def build_overlay_clips(
         self,
-        input_path: Path,
-        output_path: Path,
+        video_size: tuple[int, int],
         *,
         author: str = "",
         theme: str = "",
         audio_path: Optional[Path] = None,
-    ) -> Path:
-        """叠加多层文字水印。
-
-        Args:
-            input_path: 输入视频路径。
-            output_path: 输出视频路径。
-            author: 署名文字（空则从配置读取）。
-            theme: 书名标题（空则从路径推断）。
-            audio_path: 用于计算时长的音频（空则跳过时长行）。
-        """
-        if not input_path.exists():
-            raise FileNotFoundError(f"输入视频未找到: {input_path}")
-
+    ) -> list[ImageClip]:
+        """返回水印 ImageClip"""
+        width, height = video_size
         author = author or self._settings.WATERMARK_AUTHOR
         if not theme:
             theme = self._paths.theme
 
-        # 书名 + 作者
-        filters = [
-            self._drawtext(
-                f"《 {theme} 》", 90, "0x791E1E", "(w-text_w)/2", "80"
-            ),
+        # 字号与边距随视频尺寸等比缩放（1080p 基准）
+        scale = width / 1080
+        big_font = int(64 * scale)
+        small_font = int(38 * scale)
+        margin = int(30 * scale)
+
+        # 书名（顶部居中，半透明白）
+        clips: list[ImageClip] = [
+            self._overlay(f"《 {theme} 》", big_font, "#FFFFFF", ("center", margin), alpha=0.85)
         ]
 
-        # 时长行（需要音频）
+        # 时长行
         if audio_path and audio_path.exists():
             minutes = self._audio_duration_minutes(audio_path)
-            filters.append(self._drawtext(
-                f"全文{minutes}分钟", 60, "0x000000", "(w-text_w)/2", "180"
-            ))
+            clips.append(self._overlay(f"全文{minutes}分钟", small_font, "#FFFFFF", ("center", margin * 2 + big_font), alpha=0.7))
 
-        filters.extend([
-            self._drawtext("已完结", 60, "0x000000", "(w-text_w)/2", "250"),
-            self._drawtext(
-                "小说纯属虚构 请勿模仿",
-                50, "0x000000", "(w-text_w)/2", "(h-80-text_h)",
-            ),
-            self._drawtext(
-                author, 50, "0x87CEFA", "(w-40-text_w)", "(h-200-text_h)", alpha=0.5,
-            ),
-        ])
+        # 已完结
+        clips.append(self._overlay("已完结", small_font, "#FFFFFF", ("center", margin * 3 + big_font + small_font), alpha=0.7))
 
-        filter_chain = ",".join(filters)
-        cmd = [
-            "ffmpeg",
-            "-i",
-            str(input_path),
-            "-vf",
-            filter_chain,
-            "-c:v",
-            "libx264",
-            "-preset",
-            "fast",
-            "-crf",
-            "23",
-            "-c:a",
-            "copy",
-            "-y",
-            str(output_path),
-        ]
+        # 免责声明（底部居中，半透明白）
+        img = self._render_text("小说纯属虚构 请勿模仿", small_font, "#FFFFFF", alpha=0.5)
+        clips.append(ImageClip(img).with_position(("center", height - img.shape[0] - margin)))
 
-        logger.info("正在添加水印 …")
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=self.FFMPEG_TIMEOUT
-        )
-        if result.returncode != 0:
-            logger.error("FFmpeg 失败:\n%s", result.stderr)
-            raise subprocess.CalledProcessError(
-                result.returncode, cmd, result.stdout, result.stderr
-            )
-        logger.info("已加水印 → %s", output_path)
-        return output_path
+        # 作者署名（右下角，半透明白）
+        img = self._render_text(author, small_font, "#FFFFFF", alpha=0.5)
+        clips.append(ImageClip(img).with_position((width - img.shape[1] - margin, height - img.shape[0] - margin * 2)))
+
+        return clips

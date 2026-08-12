@@ -11,17 +11,13 @@ from fastapi import UploadFile
 from pydub import AudioSegment
 
 from app.core.config import settings
+from app.core.paths import PathConfig
 
 logger = logging.getLogger(__name__)
 
 # ── 常量 ──────────────────────────────────────────────
 
 mpcfg.FFMPEG_BINARY = "ffmpeg"
-
-OUTPUT_DIR = Path(__file__).resolve().parent.parent.parent / "output" / "video"
-UPLOAD_DIR = OUTPUT_DIR / "_uploads"
-TTS_DIR = Path(__file__).resolve().parent.parent.parent / "output" / "tts"
-ASSETS_DIR = Path(__file__).resolve().parent.parent.parent / "assets"
 
 
 # ── 公开 API ──────────────────────────────────────────
@@ -99,10 +95,10 @@ def _mix_bgm(voice_path: Path, bgm_path: Path, output_path: Path) -> Path:
 
 # ── 路径解析 ────────────────────────────────────────────
 
-def _resolve_audio_path(source: str, tts_task_id: str, upload_dir: Path) -> Optional[Path]:
+def _resolve_audio_path(source: str, tts_task_id: str, upload_dir: Path, tts_dir: Path) -> Optional[Path]:
     """解析音频路径。source='tts' 从 TTS 产物取，source='upload' 从上传目录取。"""
     if source == "tts" and tts_task_id:
-        path = TTS_DIR / tts_task_id / "voice.mp3"
+        path = tts_dir / tts_task_id / "voice.mp3"
         if path.exists():
             return path
     if source == "upload":
@@ -112,10 +108,10 @@ def _resolve_audio_path(source: str, tts_task_id: str, upload_dir: Path) -> Opti
     return None
 
 
-def _resolve_srt_path(source: str, tts_task_id: str, upload_dir: Path) -> Optional[Path]:
+def _resolve_srt_path(source: str, tts_task_id: str, upload_dir: Path, tts_dir: Path) -> Optional[Path]:
     """解析字幕路径。source='tts' 从 TTS 产物取，source='upload' 从上传目录取。"""
     if source == "tts" and tts_task_id:
-        path = TTS_DIR / tts_task_id / "subtitle.srt"
+        path = tts_dir / tts_task_id / "subtitle.srt"
         if path.exists():
             return path
     if source == "upload":
@@ -130,17 +126,16 @@ def _resolve_srt_path(source: str, tts_task_id: str, upload_dir: Path) -> Option
 def _save_uploads(
     *,
     audio_source: str,
-    srt_source: str,
-    video_source: str,
-    bgm_source: str,
     audio_file: Optional[UploadFile] = None,
+    srt_source: str,
     srt_file: Optional[UploadFile] = None,
+    video_source: str,
     video_files: Optional[list[UploadFile]] = None,
+    bgm_source: str,
     bgm_file: Optional[UploadFile] = None,
 ) -> tuple[list[str], str]:
-    """保存上传文件到 UPLOAD_DIR，返回 (bg_video_paths, bgm_path)。"""
-    upload_dir = UPLOAD_DIR
-    upload_dir.mkdir(parents=True, exist_ok=True)
+    """保存上传文件到上传目录。"""
+    upload_dir = PathConfig.from_settings(settings, theme="").upload_dir
     bg_video_paths: list[str] = []
     bgm_path = ""
 
@@ -166,8 +161,3 @@ def _save_upload_file(upload_dir: Path, prefix: str, file: UploadFile) -> Path:
         shutil.copyfileobj(file.file, f)
     return dest
 
-
-# ── 模块别名（兼容旧导入路径） ──────────────────────
-
-output_url = VideoService.output_url
-start_video_task = VideoService.start_video_task

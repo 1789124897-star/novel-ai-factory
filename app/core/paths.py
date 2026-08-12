@@ -91,6 +91,22 @@ class PathConfig:
             font_file = self.project_root / font_file
         return font_file
 
+    # ══════════════════════════════════════════════════════════
+    #  视频 / TTS
+    # ══════════════════════════════════════════════════════════
+
+    @property
+    def video_output(self) -> Path:
+        return self._ensure(self.output / "video")
+
+    @property
+    def tts_output(self) -> Path:
+        return self._ensure(self.output / "tts")
+
+    @property
+    def upload_dir(self) -> Path:
+        return self._ensure(self.video_output / "_uploads")
+
     @property
     def prompts_dir(self) -> Path:
         return self.project_root / "prompts"
