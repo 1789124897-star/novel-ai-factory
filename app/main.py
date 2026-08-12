@@ -32,9 +32,8 @@ def _bootstrap(theme: str = ""):
 
 def _cmd_novel(args: argparse.Namespace) -> int:
     """编译内核 + 生成小说。"""
+    from app.services.novel_gen_service import NovelGenerator, NovelPrompt
     from app.services.novel_service import NovelCompiler
-    from app.services.novel_gen_service import NovelGenerator
-    from app.services.novel_gen_service import NovelPrompt
 
     theme = args.theme or ""
     settings, paths = _bootstrap(theme)
@@ -114,7 +113,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
 
         prompt = NovelPrompt(theme, paths, kernel)
         generator = NovelGenerator(prompt, paths, _settings)
-        novel_text = generator.generate_novel(target_words=getattr(args, "target_words", 8000))
+        novel_text = generator.generate_novel(target_words=args.target_words)
         paths.novel_output.write_text(novel_text, encoding="utf-8")
         print(f"  ✅ 小说完成 — {len(novel_text)} 字 → {paths.novel_output}")
 

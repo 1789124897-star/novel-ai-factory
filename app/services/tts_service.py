@@ -17,9 +17,6 @@ logger = logging.getLogger(__name__)
 os.environ.setdefault("NO_PROXY", "speech.platform.bing.com,*.bing.com")
 os.environ.setdefault("no_proxy", "speech.platform.bing.com,*.bing.com")
 
-DEFAULT_VOICE = "zh-CN-XiaoxiaoNeural"
-DEFAULT_RATE = "+0%"
-
 TICKS_PER_SEC = 10_000_000
 
 
@@ -167,5 +164,3 @@ def _format_srt(seconds: float) -> str:
     s = int(seconds % 60)
     ms = int((seconds - int(seconds)) * 1000)
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
-
-_synthesize = TTSService.synthesize

@@ -357,6 +357,7 @@ async function doGenVideo() {
   form.append("audio_tts_task_id", _ttsTaskId);
   form.append("srt_source", _videoSrtSrc);
   form.append("srt_tts_task_id", _ttsTaskId);
+  form.append("theme", document.getElementById("videoThemeInput").value.trim());
   form.append("watermark_text", document.getElementById("videoWatermarkText").value.trim());
   form.append("video_source", _videoBgSrc);
   form.append("bgm_source", _videoBgmSrc);

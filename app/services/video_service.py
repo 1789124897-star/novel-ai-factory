@@ -3,6 +3,7 @@
 import logging
 import math
 import shutil
+import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -28,6 +29,7 @@ class VideoService:
     @staticmethod
     def start_video_task(
         *,
+        theme: str,
         audio_source: str,
         audio_tts_task_id: str,
         srt_source: str,
@@ -43,7 +45,13 @@ class VideoService:
         """保存上传文件并提交视频制作任务，返回 task_id。"""
         from app.tasks import video_tasks  # 延迟导入避免循环依赖
 
+        # 先生成 task_id，上传文件落到任务专属目录，供执行阶段解析与清理
+        task_id = str(uuid.uuid4())[:8]
+        paths = PathConfig.from_settings(settings, theme=theme)
+        upload_dir = paths.video_output / task_id / "_uploads"
+
         bg_video_paths, bgm_path = _save_uploads(
+            upload_dir=upload_dir,
             audio_source=audio_source,
             srt_source=srt_source,
             video_source=video_source,
@@ -54,6 +62,8 @@ class VideoService:
             bgm_file=bgm_file,
         )
         return video_tasks.start_task(
+            task_id=task_id,
+            theme=theme,
             audio_source=audio_source,
             audio_tts_task_id=audio_tts_task_id,
             srt_source=srt_source,
@@ -69,62 +79,63 @@ class VideoService:
     def output_url(rel_path: str) -> str:
         return f"/output/video/{rel_path}"
 
+    # ── 路径解析 ────────────────────────────────────────────
 
-# ── BGM 混音 ──────────────────────────────────────────
+    @staticmethod
+    def resolve_audio_path(source: str, tts_task_id: str, upload_dir: Path, tts_dir: Path) -> Optional[Path]:
+        """解析音频路径。source='tts' 从 TTS 产物取，source='upload' 从上传目录取。"""
+        if source == "tts" and tts_task_id:
+            path = tts_dir / tts_task_id / "voice.mp3"
+            if path.exists():
+                return path
+        if source == "upload":
+            candidates = sorted(upload_dir.glob("audio_*"))
+            if candidates:
+                return candidates[0]
+        return None
 
-def _mix_bgm(voice_path: Path, bgm_path: Path, output_path: Path) -> Path:
-    """将 BGM 混入语音，音量比从配置读取。"""
-    voice = AudioSegment.from_file(voice_path)
-    bgm = AudioSegment.from_file(bgm_path)
+    @staticmethod
+    def resolve_srt_path(source: str, tts_task_id: str, upload_dir: Path, tts_dir: Path) -> Optional[Path]:
+        """解析字幕路径。source='tts' 从 TTS 产物取，source='upload' 从上传目录取。"""
+        if source == "tts" and tts_task_id:
+            path = tts_dir / tts_task_id / "subtitle.srt"
+            if path.exists():
+                return path
+        if source == "upload":
+            candidates = sorted(upload_dir.glob("srt_*"))
+            if candidates:
+                return candidates[0]
+        return None
 
-    db_change = 20 * math.log10(settings.BGM_VOLUME_RATIO)
-    bgm = bgm + db_change
+    # ── BGM 混音 ──────────────────────────────────────────
 
-    if len(bgm) < len(voice):
-        loops = math.ceil(len(voice) / len(bgm))
-        bgm = (bgm * loops)[:len(voice)]
-    else:
-        bgm = bgm[:len(voice)]
+    @staticmethod
+    def mix_bgm(voice_path: Path, bgm_path: Path, output_path: Path) -> Path:
+        """将 BGM 混入语音，音量比从配置读取。"""
+        voice = AudioSegment.from_file(voice_path)
+        bgm = AudioSegment.from_file(bgm_path)
 
-    mixed = voice.overlay(bgm)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    mixed.export(output_path, format="mp3", bitrate="320k")
-    logger.info("BGM 混音完成 → %s", output_path)
-    return output_path
+        db_change = 20 * math.log10(settings.BGM_VOLUME_RATIO)
+        bgm = bgm + db_change
 
+        if len(bgm) < len(voice):
+            loops = math.ceil(len(voice) / len(bgm))
+            bgm = (bgm * loops)[:len(voice)]
+        else:
+            bgm = bgm[:len(voice)]
 
-# ── 路径解析 ────────────────────────────────────────────
-
-def _resolve_audio_path(source: str, tts_task_id: str, upload_dir: Path, tts_dir: Path) -> Optional[Path]:
-    """解析音频路径。source='tts' 从 TTS 产物取，source='upload' 从上传目录取。"""
-    if source == "tts" and tts_task_id:
-        path = tts_dir / tts_task_id / "voice.mp3"
-        if path.exists():
-            return path
-    if source == "upload":
-        candidates = sorted(upload_dir.glob("audio_*"))
-        if candidates:
-            return candidates[0]
-    return None
-
-
-def _resolve_srt_path(source: str, tts_task_id: str, upload_dir: Path, tts_dir: Path) -> Optional[Path]:
-    """解析字幕路径。source='tts' 从 TTS 产物取，source='upload' 从上传目录取。"""
-    if source == "tts" and tts_task_id:
-        path = tts_dir / tts_task_id / "subtitle.srt"
-        if path.exists():
-            return path
-    if source == "upload":
-        candidates = sorted(upload_dir.glob("srt_*"))
-        if candidates:
-            return candidates[0]
-    return None
+        mixed = voice.overlay(bgm)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        mixed.export(output_path, format="mp3", bitrate="320k")
+        logger.info("BGM 混音完成 → %s", output_path)
+        return output_path
 
 
 # ── 上传文件保存 ──────────────────────────────────────
 
 def _save_uploads(
     *,
+    upload_dir: Path,
     audio_source: str,
     audio_file: Optional[UploadFile] = None,
     srt_source: str,
@@ -134,8 +145,8 @@ def _save_uploads(
     bgm_source: str,
     bgm_file: Optional[UploadFile] = None,
 ) -> tuple[list[str], str]:
-    """保存上传文件到上传目录。"""
-    upload_dir = PathConfig.from_settings(settings, theme="").upload_dir
+    """保存上传文件到任务专属上传目录。"""
+    upload_dir.mkdir(parents=True, exist_ok=True)
     bg_video_paths: list[str] = []
     bgm_path = ""
 

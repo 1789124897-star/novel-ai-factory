@@ -24,23 +24,18 @@ class Settings(BaseSettings):
     OUTPUT_DIR: Path = Path("output")
 
     # ── 小说生成 (DeepSeek) ────────────────────────────────
-    DEEPSEEK_API_KEY: str  
-    DEEPSEEK_BASE_URL: str  
+    DEEPSEEK_API_KEY: str
+    DEEPSEEK_BASE_URL: str
 
     DEEPSEEK_MODEL: str = "deepseek-v4-pro"
 
     DEEPSEEK_TEMPERATURE: float = 0.85
-    DEEPSEEK_TOP_P: float = 0.92
     DEEPSEEK_MAX_TOKENS: int = 12000
-
-    DEEPSEEK_PRESENCE_PENALTY: float = 0.4
-    DEEPSEEK_FREQUENCY_PENALTY: float = 0.2
 
     # ── 视频制作 ───────────────────────────────────────────
     BGM_VOLUME_RATIO: float = 0.3
 
     # ── 水印 ────────────────────────────────────────────────
-    WATERMARK_AUTHOR: str = "@作者"
     WATERMARK_FONT: Path = Path("assets/fonts/LXGWWenKai-Regular.ttf")
 
     # ════════════════════════════════════════════════════════
@@ -64,20 +59,6 @@ class Settings(BaseSettings):
     def _check_positive(cls, v: int) -> int:
         if v <= 0:
             raise ValueError("DEEPSEEK_MAX_TOKENS must be positive")
-        return v
-
-    @field_validator("DEEPSEEK_TOP_P")
-    @classmethod
-    def _check_top_p(cls, v: float) -> float:
-        if not 0 <= v <= 1:
-            raise ValueError("DEEPSEEK_TOP_P must be between 0 and 1")
-        return v
-
-    @field_validator("DEEPSEEK_FREQUENCY_PENALTY", "DEEPSEEK_PRESENCE_PENALTY")
-    @classmethod
-    def _check_penalty(cls, v: float) -> float:
-        if not -2 <= v <= 2:
-            raise ValueError("Penalty 参数必须在 -2 到 2 之间")
         return v
 
 

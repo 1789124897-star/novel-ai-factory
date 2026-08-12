@@ -9,12 +9,7 @@ from typing import Optional
 from app.core.config import settings
 from app.core.paths import PathConfig
 from app.services.task_manager import TaskManager
-from app.services.video_service import (
-    VideoService,
-    _resolve_audio_path,
-    _resolve_srt_path,
-    _mix_bgm,
-)
+from app.services.video_service import VideoService
 from app.video import SubtitleRenderer, VideoPipeline, Watermark
 from moviepy import CompositeVideoClip, ImageClip
 
@@ -25,6 +20,7 @@ _task_manager = TaskManager()
 
 def start_task(
     *,
+    task_id: Optional[str] = None,
     theme: str = "",
     audio_source: str = "tts",
     audio_tts_task_id: str = "",
@@ -49,6 +45,7 @@ def start_task(
         bgm_source, 
         bgm_path, 
         watermark_text,
+        task_id=task_id,
     )
     logger.info("视频任务已启动 task_id=%s theme=%s", task_id, theme)
     return task_id
@@ -83,7 +80,7 @@ def _do_video(
 
         # 1. 解析音频
         _task_manager.update(task_id, step="解析音频源")
-        audio_path = _resolve_audio_path(audio_source, audio_tts_task_id, upload_dir, paths.tts_output)
+        audio_path = VideoService.resolve_audio_path(audio_source, audio_tts_task_id, upload_dir, paths.tts_output)
         if not audio_path:
             raise FileNotFoundError("音频源不可用")
 
@@ -101,7 +98,7 @@ def _do_video(
         if resolved_bgm:
             _task_manager.update(task_id, step="BGM 混音")
             mixed_path = task_dir / "mixed.mp3"
-            _mix_bgm(audio_path, resolved_bgm, mixed_path)
+            VideoService.mix_bgm(audio_path, resolved_bgm, mixed_path)
             audio_path = mixed_path
 
         # 3. 视频拼接（内存）
@@ -115,17 +112,18 @@ def _do_video(
         # 4. 收集字幕 + 水印叠加层（内存）
         overlay_clips: list[ImageClip] = []
 
-        srt_path = _resolve_srt_path(srt_source, srt_tts_task_id, upload_dir, paths.tts_output) if srt_source != "none" else None
+        srt_path = VideoService.resolve_srt_path(srt_source, srt_tts_task_id, upload_dir, paths.tts_output) if srt_source != "none" else None
         if srt_path:
             _task_manager.update(task_id, step="烧录字幕")
             subtitle_renderer = SubtitleRenderer(settings, paths)
             overlay_clips.extend(subtitle_renderer.build_sub_clips(srt_path, video_clip.size))
 
-        if watermark_text:
+        if theme or watermark_text:
             _task_manager.update(task_id, step="添加水印")
             watermark = Watermark(settings, paths)
             overlay_clips.extend(watermark.build_overlay_clips(
                 video_clip.size,
+                video_clip.duration,
                 author=watermark_text,
                 theme=theme,
                 audio_path=audio_path,

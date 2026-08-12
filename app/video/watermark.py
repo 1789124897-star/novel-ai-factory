@@ -54,6 +54,7 @@ class Watermark:
     def build_overlay_clips(
         self,
         video_size: tuple[int, int],
+        duration: float,
         *,
         author: str = "",
         theme: str = "",
@@ -61,7 +62,6 @@ class Watermark:
     ) -> list[ImageClip]:
         """返回水印 ImageClip"""
         width, height = video_size
-        author = author or self._settings.WATERMARK_AUTHOR
         if not theme:
             theme = self._paths.theme
 
@@ -72,9 +72,9 @@ class Watermark:
         margin = int(30 * scale)
 
         # 书名（顶部居中，半透明白）
-        clips: list[ImageClip] = [
-            self._overlay(f"《 {theme} 》", big_font, "#FFFFFF", ("center", margin), alpha=0.85)
-        ]
+        clips: list[ImageClip] = []
+        if theme:
+            clips.append(self._overlay(f"《 {theme} 》", big_font, "#FFFFFF", ("center", margin), alpha=0.85))
 
         # 时长行
         if audio_path and audio_path.exists():
@@ -89,7 +89,9 @@ class Watermark:
         clips.append(ImageClip(img).with_position(("center", height - img.shape[0] - margin)))
 
         # 作者署名（右下角，半透明白）
-        img = self._render_text(author, small_font, "#FFFFFF", alpha=0.5)
-        clips.append(ImageClip(img).with_position((width - img.shape[1] - margin, height - img.shape[0] - margin * 2)))
+        if author:
+            img = self._render_text(author, small_font, "#FFFFFF", alpha=0.5)
+            clips.append(ImageClip(img).with_position((width - img.shape[1] - margin, height - img.shape[0] - margin * 2)))
 
-        return clips
+        # 水印全程常驻：统一明确结束时间（否则 CompositeVideoClip 无法推断时长）
+        return [clip.with_end(duration) for clip in clips]

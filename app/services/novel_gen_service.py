@@ -160,7 +160,6 @@ class NovelGenerator:
                 else:
                     raise
 
-        raise RuntimeError(f"LLM 调用 {max_retries} 次后仍失败")
 
     def generate_novel(
         self,

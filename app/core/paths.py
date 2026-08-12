@@ -15,7 +15,6 @@ class PathConfig:
     settings: Settings
     _theme: str
 
-
     @classmethod
     def from_settings(cls, settings: Settings, theme: str) -> PathConfig:
         return cls(base_root=Path(settings.OUTPUT_DIR), settings=settings, _theme=theme)
@@ -102,10 +101,6 @@ class PathConfig:
     @property
     def tts_output(self) -> Path:
         return self._ensure(self.output / "tts")
-
-    @property
-    def upload_dir(self) -> Path:
-        return self._ensure(self.video_output / "_uploads")
 
     @property
     def prompts_dir(self) -> Path:

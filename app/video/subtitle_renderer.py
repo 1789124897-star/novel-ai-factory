@@ -1,12 +1,10 @@
 """Pillow + MoviePy SRT 字幕叠加。"""
 
 import logging
-import multiprocessing
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
-from moviepy import CompositeVideoClip, ImageClip, VideoFileClip
+from moviepy import ImageClip
 from PIL import Image, ImageDraw, ImageFont
 
 from ..core.config import Settings
@@ -105,39 +103,3 @@ class SubtitleRenderer:
             if i % 50 == 0:
                 logger.info("  字幕 %d/%d", i, len(entries))
         return sub_clips
-
-    def render(self, video_path: Path, srt_path: Path, output_path: Path) -> Path:
-        """加载视频 + 解析 SRT → 叠加字幕 → 写出。"""
-        if not video_path.exists():
-            raise FileNotFoundError(f"视频未找到: {video_path}")
-        if not srt_path.exists():
-            raise FileNotFoundError(f"SRT 未找到: {srt_path}")
-
-        logger.info("正在加载视频 …")
-        video = VideoFileClip(str(video_path))
-        logger.info("视频: %dx%d", *video.size)
-
-        sub_clips = self.build_sub_clips(srt_path, video.size)
-
-        final: Optional[CompositeVideoClip] = None
-        try:
-            final = CompositeVideoClip([video, *sub_clips], size=video.size)
-            threads = min(8, multiprocessing.cpu_count())
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            final.write_videofile(
-                str(output_path),
-                codec="libx264",
-                audio_codec="aac",
-                fps=video.fps,
-                preset="fast",
-                threads=threads,
-                bitrate="5000k",
-            )
-            logger.info("已加字幕视频 → %s", output_path)
-            return output_path
-        finally:
-            video.close()
-            for sub_clip in sub_clips:
-                sub_clip.close()
-            if final:
-                final.close()

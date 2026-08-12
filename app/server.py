@@ -6,6 +6,10 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import novel_router, tts_router, video_router
+from app.core.config import settings
+from app.core.logging import setup_logging
+
+setup_logging(settings)
 
 app = FastAPI(title="小说AI工厂", version="1.0.0")
 
