@@ -16,7 +16,7 @@ class NovelCompiler:
 
     @staticmethod
     def compile(theme: str) -> dict:
-        """编译主题为结构化叙事内核，保存到文件并返回。"""
+        """编译主题为结构化叙事内核"""
         paths = PathConfig.from_settings(settings, theme=theme)
         prompt_path = paths.theme_compiler_prompt
         if not prompt_path.exists():

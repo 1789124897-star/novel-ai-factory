@@ -3,7 +3,6 @@
 import logging
 import math
 import shutil
-import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -45,8 +44,8 @@ class VideoService:
         """保存上传文件并提交视频制作任务，返回 task_id。"""
         from app.tasks import video_tasks  # 延迟导入避免循环依赖
 
-        # 先生成 task_id，上传文件落到任务专属目录，供执行阶段解析与清理
-        task_id = str(uuid.uuid4())[:8]
+        # 先向任务管理器取号，上传文件落到任务专属目录，供执行阶段解析与清理
+        task_id = video_tasks.new_task_id()
         paths = PathConfig.from_settings(settings, theme=theme)
         upload_dir = paths.video_output / task_id / "_uploads"
 

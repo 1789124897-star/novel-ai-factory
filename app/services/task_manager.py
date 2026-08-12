@@ -16,14 +16,18 @@ class TaskManager:
         self._tasks: dict[str, dict] = {}
         self._lock = threading.Lock()
 
+    def next_id(self) -> str:
+        """生成新任务号。"""
+        return str(uuid.uuid4())[:8]
+
     def start(
         self,
         target: Callable[..., None],
         *args: Any,
         task_id: Optional[str] = None,
     ) -> str:
-        """创建后台任务，可传入预设 task_id（如视频任务需先建目录再提交）。"""
-        task_id = task_id or str(uuid.uuid4())[:8]
+        """创建后台任务"""
+        task_id = task_id or self.next_id()
         state: dict[str, Any] = {"status": "running", "error": None}
         with self._lock:
             self._tasks[task_id] = state
