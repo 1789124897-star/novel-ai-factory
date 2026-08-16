@@ -9,8 +9,8 @@ description = "AI-powered novel generation pipeline: from theme to subtitled vid
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "Chen Weili", email = "chenweili@example.com" }]
-keywords = ["novel", "ai", "tts", "video", "gothic", "pipeline"]
+authors = [{ name = "Chen Weili", email = "268716529+1789124897-star@users.noreply.github.com" }]
+keywords = ["novel", "ai", "tts", "video", "pipeline"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",

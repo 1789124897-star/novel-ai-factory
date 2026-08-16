@@ -21,6 +21,7 @@ Web 界面一键操作,后台异步执行,进度实时推送。
 
 - **叙事内核编译** — LLM 将一句话主题拆解为结构化叙事内核
 - **四阶段小说生成** — 起·承·转·合分阶段创作,字数预算动态控制
+- **可编排管线** — Stage 枚举定义管线阶段,CLI 可按需组合与跳过阶段
 - **智能 TTS + 字幕** — edge-tts 流式合成,基于词级时间戳逐句生成 SRT
 - **全自动视频** — 背景片段拼接 + 字幕叠加 + 半透明水印 + BGM 混音
 - **轻量异步任务** — 自研任务管理器(threading + Lock),SSE 实时推送进度
@@ -82,11 +83,17 @@ uvicorn app.server:app --reload
 **CLI 模式:**
 
 ```bash
-# 仅生成小说
+# 仅生成小说（编译内核 + 四阶段生成）
 novel-ai-factory novel -t "仵作之死"
 
-# 全流程一键运行
+# 运行完整管线（当前含内核编译 + 小说生成阶段）
 novel-ai-factory run -t "铁甲怪人"
+
+# 指定阶段运行
+novel-ai-factory run -t "铁甲怪人" --stages compile,generate
+
+# 跳过指定阶段
+novel-ai-factory run -t "铁甲怪人" --skip generate
 ```
 
 ---
@@ -98,11 +105,13 @@ novel-ai-factory/
 ├── app/
 │   ├── main.py                    # CLI 入口
 │   ├── server.py                  # Web 入口 (FastAPI)
-│   ├── api/routes/                # 路由层 (novel / tts / video)
+│   ├── api/routes/                # 路由层 (novel / tts / video / pipeline)
 │   ├── core/
 │   │   ├── config.py              # Pydantic Settings 统一配置
 │   │   ├── paths.py               # PathConfig 集中路径管理
 │   │   └── logging.py             # 日志配置
+│   ├── pipeline/
+│   │   └── stage.py               # 管线阶段枚举 (Stage)
 │   ├── services/                  # 服务层 (业务逻辑)
 │   │   ├── novel_service.py       # 叙事内核编译
 │   │   ├── novel_gen_service.py   # 四阶段小说生成
