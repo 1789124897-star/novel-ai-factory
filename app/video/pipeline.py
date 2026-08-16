@@ -25,9 +25,9 @@ class VideoPipeline:
         self._settings = settings
         self._paths = paths
 
-    # 默认视频素材收集 
+    # 默认视频素材收集
     def _collect_clips(self, start_index: int, target_duration: float) -> list[Path]:
-        
+
         # 排列视频路径
         all_clips = sorted(clip_path for clip_path in self._paths.video_clip_dir.iterdir() if clip_path.suffix.lower() in VIDEO_EXTENSIONS)
         if not all_clips:

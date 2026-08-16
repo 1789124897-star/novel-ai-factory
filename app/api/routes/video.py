@@ -37,7 +37,7 @@ async def start_video(
 
     # ── 背景视频 ──
     video_source: str = Form("default"),
-    video_files: list[UploadFile] = [],
+    video_files: Optional[list[UploadFile]] = None,
 
     # ── BGM ──
     bgm_source: str = Form("default"),
@@ -49,7 +49,7 @@ async def start_video(
 ) -> dict:
     """启动视频制作任务。"""
     task_id = VideoService.start_video_task(
-        
+
         audio_source=audio_source,
         audio_tts_task_id=audio_tts_task_id,
         audio_file=audio_file,

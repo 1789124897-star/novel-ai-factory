@@ -48,7 +48,7 @@ def _cmd_novel(args: argparse.Namespace) -> int:
 
     # 2. 生成小说
     print(f"\n{'='*60}")
-    print(f"  📖 四阶段小说生成 (起·承·转·合)")
+    print("  📖 四阶段小说生成 (起·承·转·合)")
     print(f"{'='*60}")
     prompt = NovelPrompt(theme, paths, kernel)
     generator = NovelGenerator(prompt, paths, settings)
@@ -85,7 +85,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         return 0
 
     print(f"\n{'='*60}")
-    print(f"  🚀 小说AI工厂 · 全流程管道")
+    print("  🚀 小说AI工厂 · 全流程管道")
     print(f"  主题: {theme}")
     print(f"  {' → '.join(s.value for s in stages)}")
     print(f"{'='*60}")
@@ -95,7 +95,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
     if Stage.COMPILE in stage_set:
         from app.services.novel_service import NovelCompiler
 
-        print(f"\n  🔮 编译叙事内核 …")
+        print("\n  🔮 编译叙事内核 …")
         data = NovelCompiler.compile(theme)
         kernel = data["kernel"]
         print(f"  ✓ 内核已保存 → {data['kernel_path']}")
@@ -108,7 +108,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
                 print("❌ 需要先编译叙事内核 (--stages compile)", file=sys.stderr)
                 return 1
 
-        print(f"\n  📖 四阶段小说生成 (起·承·转·合)")
+        print("\n  📖 四阶段小说生成 (起·承·转·合)")
         from app.services.novel_gen_service import NovelGenerator, NovelPrompt
 
         prompt = NovelPrompt(theme, paths, kernel)
@@ -118,7 +118,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         print(f"  ✅ 小说完成 — {len(novel_text)} 字 → {paths.novel_output}")
 
     print(f"\n{'='*60}")
-    print(f"  🎉 管道执行完毕！")
+    print("  🎉 管道执行完毕！")
     print(f"{'='*60}")
     return 0
 

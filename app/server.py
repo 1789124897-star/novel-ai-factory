@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import novel_router, tts_router, video_router, pipeline_router
+from app.api.routes import novel_router, pipeline_router, tts_router, video_router
 from app.core.config import settings
 from app.core.logging import setup_logging
 

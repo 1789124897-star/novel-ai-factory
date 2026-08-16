@@ -1,6 +1,5 @@
 """Edge TTS 语音合成服务 — 文本 → 音频 + SRT 字幕"""
 
-import asyncio
 import logging
 import os
 from pathlib import Path

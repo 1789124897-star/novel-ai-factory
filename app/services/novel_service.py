@@ -1,7 +1,6 @@
 """叙事内核编译。"""
 
 import logging
-from pathlib import Path
 
 import requests
 

@@ -21,7 +21,7 @@ async def start_tts(req: TTSRequest) -> dict:
         )
         return {"data": {"task_id": task_id}, "message": "ok"}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise HTTPException(500, str(e)) from e
 
 
 @router.get("/{task_id}")

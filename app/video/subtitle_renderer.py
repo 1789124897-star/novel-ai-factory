@@ -90,7 +90,7 @@ class SubtitleRenderer:
 
     def build_sub_clips(self, srt_path: Path, video_size: tuple[int, int]) -> list[ImageClip]:
         """解析 SRT 并返回 ImageClip 列表"""
-        
+
         entries = self._parse_srt(srt_path)
         video_width, video_height = video_size
         sub_clips: list[ImageClip] = []

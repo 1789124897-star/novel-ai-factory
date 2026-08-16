@@ -14,7 +14,7 @@ from typing import Optional
 
 from app.services.task_manager import TaskManager
 from app.services.video_service import VideoService
-from app.tasks import novel_tasks, gen_tasks, tts_tasks, video_tasks
+from app.tasks import gen_tasks, novel_tasks, tts_tasks, video_tasks
 
 logger = logging.getLogger(__name__)
 

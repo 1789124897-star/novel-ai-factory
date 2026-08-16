@@ -6,12 +6,13 @@ import shutil
 from pathlib import Path
 from typing import Optional
 
+from moviepy import CompositeVideoClip, ImageClip
+
 from app.core.config import settings
 from app.core.paths import PathConfig
 from app.services.task_manager import TaskManager
 from app.services.video_service import VideoService
 from app.video import SubtitleRenderer, VideoPipeline, Watermark
-from moviepy import CompositeVideoClip, ImageClip
 
 logger = logging.getLogger(__name__)
 
@@ -40,15 +41,15 @@ def start_task(
     """启动后台视频制作任务，返回 task_id。"""
     task_id = _task_manager.start(
         _do_video,
-        theme, 
-        audio_source, 
+        theme,
+        audio_source,
         audio_tts_task_id,
-        srt_source, 
-        srt_tts_task_id, 
+        srt_source,
+        srt_tts_task_id,
         video_source,
-        bg_video_paths or [], 
-        bgm_source, 
-        bgm_path, 
+        bg_video_paths or [],
+        bgm_source,
+        bgm_path,
         watermark_text,
         task_id=task_id,
     )

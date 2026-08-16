@@ -146,7 +146,7 @@ def _save_uploads(
 
     bgm_source: str,
     bgm_file: Optional[UploadFile] = None,
-    
+
 ) -> tuple[list[str], str]:
     """保存上传文件到任务专属上传目录。"""
     bg_video_paths: list[str] = []

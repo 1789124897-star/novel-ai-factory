@@ -2,7 +2,7 @@
 
 **从一句话主题,到带字幕的完整视频,全自动生成。**
 
-> Python 3.10+ · FastAPI · DeepSeek · edge-tts · MoviePy
+> Python 3.9+ · FastAPI · DeepSeek · edge-tts · MoviePy
 
 ---
 
@@ -33,7 +33,7 @@ Web 界面一键操作,后台异步执行,进度实时推送。
 
 ### 1. 环境要求
 
-- Python 3.10+
+- Python 3.9+
 - FFmpeg(MoviePy / pydub 依赖,需在系统 PATH 中)
 
 ### 2. 安装

@@ -19,7 +19,7 @@ async def start_pipeline(
     bgm_source: str = Form("default"),
     watermark_theme: str = Form(""),
     watermark_author: str = Form(""),
-    video_files: list[UploadFile] = [],
+    video_files: Optional[list[UploadFile]] = None,
     bgm_file: Optional[UploadFile] = None,
 ) -> dict:
     """启动全链路编排任务。
@@ -27,6 +27,7 @@ async def start_pipeline(
     上传文件在请求阶段读入内存（背景视频/BGM 需等到最后的视频步骤才使用，
     此时 UploadFile 句柄已随请求结束而关闭），后台任务后续从内存解析。
     """
+    video_files = video_files or []
     try:
         video_files_data = (
             [(f.filename, await f.read()) for f in video_files if f.filename] or None
@@ -37,7 +38,7 @@ async def start_pipeline(
             else None
         )
     except Exception as e:
-        raise HTTPException(500, f"读取上传文件失败: {e}")
+        raise HTTPException(500, f"读取上传文件失败: {e}") from e
 
     task_id = pipeline_tasks.start_pipeline(
         theme=theme.strip(),

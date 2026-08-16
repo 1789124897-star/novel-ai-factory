@@ -5,7 +5,7 @@ from typing import Optional
 
 from app.core.config import settings
 from app.core.paths import PathConfig
-from app.services.novel_gen_service import NovelPrompt, NovelGenerator
+from app.services.novel_gen_service import NovelGenerator, NovelPrompt
 from app.services.task_manager import TaskManager
 
 logger = logging.getLogger(__name__)
