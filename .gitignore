@@ -21,6 +21,11 @@ env/
 # Environment (contains secrets!)
 .env
 
+# 个人私有文件（简历等，勿上传公开仓库）
+*.pdf
+*简历*.html
+*面试*.html
+
 # Output (generated content)
 output/
 logs/

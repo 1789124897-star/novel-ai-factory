@@ -54,18 +54,17 @@ class VideoPipeline:
             raise ValueError("未找到可用的视频片段")
         return selected
 
-    # ── 主流程 ───────────────────────────────────────
-
+    # 主流程
     def assemble(
         self,
         audio_path: Path,
         start_index: int = 0,
         video_paths: Optional[list[Path]] = None,
     ) -> VideoFileClip:
-        """拼接背景片段并叠加音频，返回合成剪辑（未编码），调用方负责 close()。"""
+        """拼接背景片段并叠加音频"""
+
         if not audio_path.exists():
             raise FileNotFoundError(f"音频未找到: {audio_path}")
-
         audio = AudioFileClip(str(audio_path))
         target_duration = round(audio.duration, 2)
         logger.info("目标音频时长: %.1fs", target_duration)

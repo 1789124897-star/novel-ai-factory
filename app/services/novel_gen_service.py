@@ -72,7 +72,7 @@ class NovelPrompt:
     def get_stage_prompt(
         self,
         stage_info: dict,
-        previous_full_text: str = "",
+        full_text: str = "",
         target_words: int = 8000,
     ) -> str:
         """构建单阶段完整 prompt。"""
@@ -87,9 +87,9 @@ class NovelPrompt:
             f"【核心任务】{stage_info['task']}",
         ]
 
-        if previous_full_text:
+        if full_text:
             prompt_parts += [
-                f"【已生成的小说全文】\n{previous_full_text}",
+                f"【已生成的小说全文】\n{full_text}",
                 "请以上文为基础无缝续写本阶段。注意回收前文埋下的伏笔，保持人物性格、对白风格和叙事节奏一致。",
             ]
         else:
@@ -169,20 +169,24 @@ class NovelGenerator:
         """完整四阶段生成流程。"""
         logger.info("开始分阶段小说生成（目标 ~%d 字）", target_words)
 
-        full_content = ""
+        full_text = ""
 
-        for idx, stage in enumerate(STAGES, 1):
-            logger.info("━ 第 %d 阶段：【%s】", idx, stage["name"])
+        for idx, stage_info in enumerate(STAGES, 1):
+            logger.info("━ 第 %d 阶段：【%s】", idx, stage_info["name"])
 
-            stage_prompt = self.prompt.get_stage_prompt(stage, full_content, target_words=target_words)
+            stage_prompt = self.prompt.get_stage_prompt(
+                stage_info=stage_info,
+                full_text=full_text,
+                target_words=target_words,
+            )
             stage_content = self._single_generate(stage_prompt)
 
-            full_content += stage_content + "\n\n"
+            full_text += stage_content + "\n\n"
             self.paths.part_file(idx).write_text(stage_content, encoding="utf-8")
 
             if on_stage_complete:
-                on_stage_complete(stage["name"], stage_content)
+                on_stage_complete(stage_info["name"], stage_content)
             logger.info("  完成 — %d 字", len(stage_content))
 
-        logger.info("所有阶段完成 — 共 %d 字", len(full_content))
-        return full_content
+        logger.info("所有阶段完成 — 共 %d 字", len(full_text))
+        return full_text

@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Form, HTTPException, UploadFile
 
 from app.services.video_service import VideoService
 from app.tasks import video_tasks
@@ -37,7 +37,7 @@ async def start_video(
 
     # ── 背景视频 ──
     video_source: str = Form("default"),
-    video_files: Optional[list[UploadFile]] = File(None),
+    video_files: list[UploadFile] = [],
 
     # ── BGM ──
     bgm_source: str = Form("default"),
@@ -49,17 +49,22 @@ async def start_video(
 ) -> dict:
     """启动视频制作任务。"""
     task_id = VideoService.start_video_task(
-        theme=theme.strip(),
+        
         audio_source=audio_source,
         audio_tts_task_id=audio_tts_task_id,
         audio_file=audio_file,
+
         srt_source=srt_source,
         srt_tts_task_id=srt_tts_task_id,
         srt_file=srt_file,
+
         video_source=video_source,
         video_files=video_files,
+
         bgm_source=bgm_source,
         bgm_file=bgm_file,
+
+        theme=theme.strip(),
         watermark_text=watermark_text.strip(),
     )
     return {"data": {"task_id": task_id}, "message": "ok"}

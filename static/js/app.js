@@ -213,6 +213,9 @@ async function doGenTTS() {
 // 监听文本变化更新字数
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("ttsText").addEventListener("input", updateTTSCharCount);
+  // 输入变更后重置续跑状态，避免新配置复用旧产物
+  ["ocThemeInput", "ocWatermarkTheme", "ocWatermarkAuthor"].forEach(id =>
+    document.getElementById(id).addEventListener("input", ocResetResumeBtn));
   fetchVideoClipCount();
 });
 
@@ -634,3 +637,247 @@ switchTab = function(tabId) {
     updateTtsHint("videoSrtTtsHint", _videoSrtSrc);
   }
 };
+
+// ── ⚡ 一键生成（全链路编排）─────────────────────────────
+
+const OC_STEPS = [
+  { key: "compile", label: "编译叙事内核" },
+  { key: "generate", label: "四阶段小说生成" },
+  { key: "tts", label: "TTS 配音" },
+  { key: "video", label: "视频合成" },
+];
+
+let _ocStepIdx = -1; // 当前步骤下标，用于失败定位
+
+// ── 高级选项状态 ────────────────────────────────────
+
+let _ocBgSrc = "default";
+let _ocBgmSrc = "default";
+let _ocBgFiles = [];
+
+function toggleOcAdvanced() {
+  const body = document.getElementById("ocAdvancedBody");
+  const btn = document.getElementById("ocBtnToggleAdvanced");
+  const open = body.style.display === "none";
+  body.style.display = open ? "" : "none";
+  btn.textContent = open ? "⚙️ 收起高级选项" : "⚙️ 高级选项（可选）";
+}
+
+function switchOcBgSource(mode) {
+  _ocBgSrc = mode;
+  ocResetResumeBtn();
+  const tabs = document.querySelectorAll("#ocAdvancedBody .video-source-tabs")[0].querySelectorAll(".tts-source-tab");
+  tabs.forEach(t => t.classList.remove("active"));
+  event.target.classList.add("active");
+  document.getElementById("ocBgUpload").style.display = mode === "upload" ? "" : "none";
+}
+
+function switchOcBgmSource(mode) {
+  _ocBgmSrc = mode;
+  ocResetResumeBtn();
+  const tabs = document.querySelectorAll("#ocAdvancedBody .video-source-tabs")[1].querySelectorAll(".tts-source-tab");
+  tabs.forEach(t => t.classList.remove("active"));
+  event.target.classList.add("active");
+}
+
+function addOcBgFile() {
+  const input = document.getElementById("ocBgFileInput");
+  if (!input.files.length) return;
+  for (const f of input.files) {
+    _ocBgFiles.push(f);
+  }
+  renderOcBgList();
+  input.value = "";
+  ocResetResumeBtn();
+}
+
+function removeOcBgFile(index) {
+  _ocBgFiles.splice(index, 1);
+  renderOcBgList();
+  ocResetResumeBtn();
+}
+
+function renderOcBgList() {
+  const list = document.getElementById("ocBgFileList");
+  if (!_ocBgFiles.length) {
+    list.innerHTML = "";
+    return;
+  }
+  list.innerHTML = _ocBgFiles.map((f, i) =>
+    `<li><span>${f.name} (${(f.size / 1024 / 1024).toFixed(1)} MB)</span>` +
+    `<button onclick="removeOcBgFile(${i})" class="video-file-del">✕</button></li>`
+  ).join("");
+}
+
+/** 渲染步骤列表：i < activeIdx 完成，i === activeIdx 进行中，i === failedIdx 失败。 */
+function renderOcSteps(activeIdx, failedIdx = -1) {
+  const box = document.getElementById("ocSteps");
+  box.innerHTML = OC_STEPS.map((s, i) => {
+    let cls = "oc-step", icon = "○";
+    if (failedIdx >= 0 && i === failedIdx) { cls += " failed"; icon = "✕"; }
+    else if (i < activeIdx) { cls += " done"; icon = "✓"; }
+    else if (i === activeIdx) { cls += " active"; icon = "⏳"; }
+    return `<div class="${cls}"><span class="oc-icon">${icon}</span><span>${s.label}</span></div>`;
+  }).join("");
+}
+
+// ── 一键生成：提交后端编排任务，轮询进度 ───────────────
+
+let _ocTaskId = "";   // 当前编排任务 id（失败后用于续跑）
+
+/** 用户修改生成配置后重置续跑状态：续跑沿用旧配置，改配置需重新开始。 */
+function ocResetResumeBtn() {
+  const btn = document.getElementById("btnOneClick");
+  if (btn.textContent.includes("重试")) {
+    _ocTaskId = "";
+    btn.onclick = function() { doOneClick(); };
+    btn.textContent = "🚀 一键生成";
+  }
+}
+
+function ocGetConfig() {
+  return {
+    theme: document.getElementById("ocThemeInput").value.trim(),
+    targetWords: parseInt(document.getElementById("ocTargetWords").value) || 8000,
+    voice: document.getElementById("ocVoice").value,
+    rate: document.getElementById("ocRate").value,
+  };
+}
+
+/** 组装编排请求表单（音频/字幕固定走 TTS 产物，背景视频/BGM/水印来自高级选项）。 */
+function ocBuildForm() {
+  const cfg = ocGetConfig();
+  const form = new FormData();
+  form.append("theme", cfg.theme);
+  form.append("target_words", cfg.targetWords);
+  form.append("voice", cfg.voice);
+  form.append("rate", cfg.rate);
+  form.append("video_source", _ocBgSrc);
+  form.append("bgm_source", _ocBgmSrc);
+  form.append("watermark_theme", document.getElementById("ocWatermarkTheme").value.trim());
+  form.append("watermark_author", document.getElementById("ocWatermarkAuthor").value.trim());
+  if (_ocBgSrc === "upload" && _ocBgFiles.length) {
+    _ocBgFiles.forEach(f => form.append("video_files", f));
+  }
+  return form;
+}
+
+const OC_STAGE_IDX = { compile: 0, generate: 1, tts: 2, video: 3 };
+
+/** 轮询编排任务，按后端 stage 字段推进步骤条；完成时展示视频。 */
+async function ocRunPipeline(taskId) {
+  const status = document.getElementById("ocStatus");
+  let lastIdx = -1;
+  for (;;) {
+    await new Promise(r => setTimeout(r, 2000));
+    const resp = await fetch("/api/pipeline/" + taskId);
+    const payload = await resp.json();
+    if (!payload.data) throw new Error(payload.message || payload.detail || "请求失败");
+    const state = payload.data;
+
+    if (state.status === "done") {
+      _ocStepIdx = 4;
+      renderOcSteps(4);
+      status.className = "status";
+      status.textContent = "全部完成 ✓ 视频已生成";
+      const player = document.getElementById("ocPlayer");
+      player.querySelector("source")?.remove();
+      const src = document.createElement("source");
+      src.src = state.video_url;
+      src.type = "video/mp4";
+      player.appendChild(src);
+      player.load();
+      document.getElementById("ocDownload").href = state.video_url;
+      document.getElementById("ocResult").style.display = "";
+      return;
+    }
+    if (state.status === "error") {
+      throw new Error(state.error || "任务失败");
+    }
+    const idx = OC_STAGE_IDX[state.stage] ?? lastIdx;
+    if (idx !== lastIdx) {
+      lastIdx = idx;
+      _ocStepIdx = idx;
+      renderOcSteps(idx);
+      // TTS 完成进入视频阶段：同步产物到分步模块，失败可切分步续跑
+      if (state.stage === "video" && state.tts_task_id) {
+        _ttsTaskId = state.tts_task_id;
+        _ttsAudioUrl = state.tts_audio_url || "";
+        _ttsSrtUrl = state.tts_srt_url || "";
+        _novelFullText = state.novel_text || "";
+      }
+    }
+    status.textContent = "⏳ " + (state.stage_label || "处理中…");
+  }
+}
+
+/** 失败后的重试：后端从失败阶段续跑，已完成的产物服务端复用。 */
+async function resumeOneClick() {
+  const btn = document.getElementById("btnOneClick");
+  const status = document.getElementById("ocStatus");
+
+  btn.disabled = true;
+  btn.textContent = "⏳ 续跑中…";
+  status.className = "status";
+
+  try {
+    const form = new FormData();
+    form.append("old_task_id", _ocTaskId);
+    const resp = await fetch("/api/pipeline/resume", { method: "POST", body: form });
+    const payload = await resp.json();
+    if (!payload.data?.task_id) throw new Error(payload.message || "续跑失败");
+    _ocTaskId = payload.data.task_id;
+    await ocRunPipeline(_ocTaskId);
+    btn.onclick = function() { doOneClick(); };
+    btn.textContent = "🚀 一键生成";
+  } catch (e) {
+    renderOcSteps(_ocStepIdx, _ocStepIdx);
+    status.className = "status error";
+    status.textContent = "生成失败: " + e.message + "（已完成步骤已保留，可直接重试）";
+    btn.onclick = function() { resumeOneClick(); };
+    btn.textContent = "↻ 从失败步骤重试";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function doOneClick() {
+  const cfg = ocGetConfig();
+  if (!cfg.theme) return alert("请输入故事主题");
+
+  // 校验背景视频：默认素材为空时必须上传
+  if (_ocBgSrc === "default" && _videoClipsAvailable === 0) {
+    return alert("assets/videos/ 中没有背景视频片段，请先放入 .mp4 文件，或在高级选项中上传视频");
+  }
+
+  const btn = document.getElementById("btnOneClick");
+  const status = document.getElementById("ocStatus");
+  const progress = document.getElementById("ocProgress");
+  const result = document.getElementById("ocResult");
+
+  btn.disabled = true;
+  btn.textContent = "⏳ 全链路生成中…";
+  progress.style.display = "";
+  result.style.display = "none";
+  status.className = "status";
+  _ocStepIdx = 0;
+  renderOcSteps(0);
+
+  try {
+    const resp = await fetch("/api/pipeline", { method: "POST", body: ocBuildForm() });
+    const payload = await resp.json();
+    if (!payload.data?.task_id) throw new Error(payload.message || "任务创建失败");
+    _ocTaskId = payload.data.task_id;
+    await ocRunPipeline(_ocTaskId);
+    btn.onclick = function() { doOneClick(); };
+    btn.textContent = "🚀 一键生成";
+  } catch (e) {
+    renderOcSteps(_ocStepIdx, _ocStepIdx);
+    status.className = "status error";
+    status.textContent = "生成失败: " + e.message + "（已完成步骤已保留，可直接重试）";
+    btn.onclick = function() { resumeOneClick(); };
+    btn.textContent = "↻ 从失败步骤重试";
+  } finally {
+    btn.disabled = false;
+  }
+}

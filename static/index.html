@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>小说AI工厂</title>
-<link rel="stylesheet" href="/static/css/style.css?v=5">
+<link rel="stylesheet" href="/static/css/style.css?v=6">
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
@@ -19,16 +19,133 @@
 
   <!-- Nav Tabs -->
   <nav class="nav-tabs">
-    <button class="nav-tab active" data-tab="tabNovel" onclick="switchTab('tabNovel')">📖 编译叙事内核</button>
+    <button class="nav-tab active" data-tab="tabOneClick" onclick="switchTab('tabOneClick')">⚡ 一键生成</button>
+    <button class="nav-tab" data-tab="tabNovel" onclick="switchTab('tabNovel')">📖 编译叙事内核</button>
     <button class="nav-tab" data-tab="tabNovelGen" onclick="switchTab('tabNovelGen')">📝 小说生成</button>
     <button class="nav-tab" data-tab="tabTTS" onclick="switchTab('tabTTS')">🎙️ Edge TTS 配音</button>
     <button class="nav-tab" data-tab="tabVideo" onclick="switchTab('tabVideo')">🎬 视频制作</button>
   </nav>
 
   <!-- ================================================================ -->
+  <!-- Tab: 一键生成（全链路编排） -->
+  <!-- ================================================================ -->
+  <div id="tabOneClick" class="tab-content">
+
+    <section class="card">
+      <h2>⚡ 一键生成</h2>
+      <p class="hint">输入主题，自动完成：内核编译 → 小说生成 → TTS 配音 → 视频合成</p>
+
+      <div class="input-group">
+        <div class="field">
+          <label>故事主题</label>
+          <input id="ocThemeInput" placeholder="例如：仵作之死">
+        </div>
+        <div class="field short" style="flex:0 0 120px;">
+          <label>目标字数</label>
+          <input id="ocTargetWords" type="number" value="8000" min="1000" max="50000" step="500">
+        </div>
+      </div>
+
+      <div class="tts-settings">
+        <div class="field">
+          <label>配音声音</label>
+          <select id="ocVoice">
+            <option value="zh-CN-XiaoxiaoNeural" selected>晓晓 · 女声 (推荐)</option>
+            <option value="zh-CN-YunxiNeural">云希 · 男声</option>
+            <option value="zh-CN-YunjianNeural">云健 · 男声</option>
+            <option value="zh-CN-XiaoyiNeural">晓伊 · 女声</option>
+            <option value="zh-CN-YunyangNeural">云扬 · 男声</option>
+            <option value="zh-CN-XiaochenNeural">晓辰 · 女声</option>
+            <option value="zh-CN-XiaohanNeural">晓涵 · 女声</option>
+            <option value="zh-CN-XiaomoNeural">晓墨 · 女声</option>
+            <option value="zh-CN-XiaoruiNeural">晓睿 · 女声</option>
+            <option value="zh-CN-YunfengNeural">云枫 · 男声</option>
+          </select>
+        </div>
+        <div class="field short">
+          <label>语速</label>
+          <select id="ocRate">
+            <option value="-30%">-30% 慢速</option>
+            <option value="-20%">-20%</option>
+            <option value="-10%">-10%</option>
+            <option value="+0%" selected>正常</option>
+            <option value="+10%">+10%</option>
+            <option value="+20%">+20%</option>
+            <option value="+30%">+30% 快速</option>
+          </select>
+        </div>
+      </div>
+
+      <button class="btn-primary tts-btn" id="btnOneClick" onclick="doOneClick()">🚀 一键生成</button>
+      <div class="status" id="ocStatus"></div>
+    </section>
+
+    <!-- 高级选项（可选） -->
+    <section class="card">
+      <button id="ocBtnToggleAdvanced" class="btn-gen-compile" onclick="toggleOcAdvanced()" style="margin-bottom:12px;">⚙️ 高级选项（可选）</button>
+      <div id="ocAdvancedBody" style="display:none;">
+
+        <!-- 背景视频 -->
+        <div class="video-section">
+          <h3>背景视频</h3>
+          <div class="tts-source-tabs video-source-tabs">
+            <button class="tts-source-tab active" onclick="switchOcBgSource('default')">🎬 默认素材</button>
+            <button class="tts-source-tab" onclick="switchOcBgSource('upload')">📁 上传视频</button>
+          </div>
+          <div id="ocBgUpload" style="display:none;">
+            <div class="video-upload-row">
+              <input type="file" id="ocBgFileInput" accept=".mp4,.avi,.mov" onchange="addOcBgFile()">
+            </div>
+            <ul id="ocBgFileList" class="video-file-list"></ul>
+          </div>
+        </div>
+
+        <!-- BGM -->
+        <div class="video-section">
+          <h3>BGM（可选）</h3>
+          <div class="tts-source-tabs video-source-tabs">
+            <button class="tts-source-tab active" onclick="switchOcBgmSource('default')">🎵 默认 BGM</button>
+            <button class="tts-source-tab" onclick="switchOcBgmSource('none')">🔇 无 BGM</button>
+          </div>
+        </div>
+
+        <!-- 水印 -->
+        <div class="video-section">
+          <h3>水印（可选）</h3>
+          <div class="field">
+            <label>书名（留空则不显示）</label>
+            <input type="text" id="ocWatermarkTheme" placeholder="例如：仵作之死" maxlength="30">
+          </div>
+          <div class="field" style="margin-top:8px;">
+            <label>作者署名（留空则不显示）</label>
+            <input type="text" id="ocWatermarkAuthor" placeholder="@作者" maxlength="30">
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 进度 -->
+    <section class="card" id="ocProgress" style="display:none;">
+      <h2>生成进度</h2>
+      <div id="ocSteps" class="oc-steps"></div>
+    </section>
+
+    <!-- 结果 -->
+    <section class="card" id="ocResult" style="display:none;">
+      <h2>✅ 生成完成</h2>
+      <video id="ocPlayer" controls style="width:100%;border-radius:8px;background:#000;"></video>
+      <div class="tts-downloads" style="margin-top:12px;">
+        <a id="ocDownload" href="#" class="btn-outline" download>⬇ 下载视频 MP4</a>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ================================================================ -->
   <!-- Tab: 编译叙事内核 -->
   <!-- ================================================================ -->
-  <div id="tabNovel" class="tab-content">
+  <div id="tabNovel" class="tab-content" style="display:none;">
 
     <!-- 输入主题 -->
     <section class="card" id="sectionInput">
@@ -305,6 +422,6 @@
 
 </div>
 
-<script src="/static/js/app.js?v=6"></script>
+<script src="/static/js/app.js?v=12"></script>
 </body>
 </html>

@@ -9,20 +9,12 @@ from app.services.tts_service import TTSService
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_VOICE = "zh-CN-XiaoxiaoNeural"
-DEFAULT_RATE = "+0%"
-
 _task_manager = TaskManager()
 
 
-def start_synthesis(text: str, voice: str = "", rate: str = "") -> str:
+def start_synthesis(text: str, voice: str, rate: str) -> str:
     """启动后台配音合成，返回 task_id。"""
-    task_id = _task_manager.start(
-        _do_synthesis, 
-        text, 
-        voice or DEFAULT_VOICE,
-        rate or DEFAULT_RATE
-    )
+    task_id = _task_manager.start(_do_synthesis, text, voice, rate)
     logger.info("TTS 任务已启动 task_id=%s", task_id)
     return task_id
 

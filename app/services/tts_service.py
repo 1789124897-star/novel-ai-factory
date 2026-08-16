@@ -13,7 +13,6 @@ from app.core.paths import PathConfig
 
 logger = logging.getLogger(__name__)
 
-# Edge TTS WebSocket 服务不走代理
 os.environ.setdefault("NO_PROXY", "speech.platform.bing.com,*.bing.com")
 os.environ.setdefault("no_proxy", "speech.platform.bing.com,*.bing.com")
 
@@ -73,10 +72,13 @@ class TTSService:
 
 # 断句标点（遇到就切）
 _BREAK_CHARS = {"。", "！", "？", "!", "?", "，", ",", "：", "；"}
+
 # 从句标点（切句后优先向前合并）
 _OPEN_BREAKS = {"，", ","}
+
 # 从句标点（强制分句，不合并）
 _CLOSED_BREAKS = {"。", "！", "？", "!", "?"}
+
 # 显示时删除的字符（句末标点 + 装饰符）
 _STRIP_CHARS = {"。", "！", "？", "!", "?", "、", "：", "；", ".", "~", "～", "…"}
 

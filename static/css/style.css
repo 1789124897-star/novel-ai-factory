@@ -555,6 +555,46 @@ body {
 }
 .btn-reset:hover { background: var(--accent) !important; color: #fff !important; }
 
+/* ── ⚡ 一键生成：步骤列表 ────────────────────────── */
+
+.oc-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.oc-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #f5f2ec;
+  color: var(--text2);
+  font-size: 14px;
+}
+
+.oc-step .oc-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  flex: 0 0 22px;
+  font-size: 13px;
+}
+
+.oc-step.active { background: #fff3e6; color: var(--accent); font-weight: 600; }
+.oc-step.active .oc-icon { background: var(--accent); color: #fff; }
+
+.oc-step.done { background: #eaf7ea; color: var(--green); }
+.oc-step.done .oc-icon { background: var(--green); color: #fff; }
+
+.oc-step.failed { background: #fdeaea; color: var(--red); font-weight: 600; }
+.oc-step.failed .oc-icon { background: var(--red); color: #fff; }
+
 .kernel-editor {
   width: 100%;
   margin-top: 12px;
