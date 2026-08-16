@@ -8,12 +8,9 @@
 
 import logging
 import time
-from io import BytesIO
-from types import SimpleNamespace
 from typing import Optional
 
 from app.services.task_manager import TaskManager
-from app.services.video_service import VideoService
 from app.tasks import gen_tasks, novel_tasks, tts_tasks, video_tasks
 
 logger = logging.getLogger(__name__)
@@ -26,6 +23,11 @@ _POLL_INTERVAL = 2.0  # 子任务轮询间隔（秒）
 _STAGE_TIMEOUT = {"compile": 300, "generate": 1800, "tts": 900, "video": 3600}
 
 _STAGE_ORDER = ("compile", "generate", "tts", "video")
+
+
+def new_task_id() -> str:
+    """向任务管理器要一个新任务号（上传文件落位需提前取号）。"""
+    return _task_manager.next_id()
 
 
 def _wait_sub_task(task_id: str, getter, timeout: float) -> dict:
@@ -44,14 +46,6 @@ def _wait_sub_task(task_id: str, getter, timeout: float) -> dict:
         time.sleep(_POLL_INTERVAL)
 
 
-def _wrap_upload(data: Optional[tuple[str, bytes]]) -> Optional[SimpleNamespace]:
-    """把请求阶段读入内存的上传文件包装成 file-like 对象。"""
-    if not data:
-        return None
-    name, content = data
-    return SimpleNamespace(filename=name, file=BytesIO(content))
-
-
 def start_pipeline(
     theme: str,
     target_words: int,
@@ -61,8 +55,9 @@ def start_pipeline(
     bgm_source: str,
     watermark_theme: str,
     watermark_author: str,
-    video_files_data: Optional[list[tuple[str, bytes]]] = None,
-    bgm_file_data: Optional[tuple[str, bytes]] = None,
+    video_paths: Optional[list[str]] = None,
+    bgm_path: str = "",
+    task_id: Optional[str] = None,
 ) -> str:
     """启动全链路编排任务，返回 task_id。"""
     task_id = _task_manager.start(
@@ -75,12 +70,13 @@ def start_pipeline(
         bgm_source,
         watermark_theme,
         watermark_author,
-        video_files_data,
-        bgm_file_data,
+        video_paths or [],
+        bgm_path,
         "",         # kernel（续跑时复用）
         "",         # novel_text（续跑时复用）
         "",         # tts_task_id（续跑时复用）
         "compile",  # start_stage
+        task_id=task_id,
     )
     logger.info("编排任务已启动 task_id=%s theme=%s", task_id, theme)
     return task_id
@@ -102,8 +98,8 @@ def resume_pipeline(old_task_id: str) -> str:
         old.get("bgm_source", "default"),
         old.get("watermark_theme", ""),
         old.get("watermark_author", ""),
-        old.get("video_files_data"),
-        old.get("bgm_file_data"),
+        old.get("video_paths") or [],
+        old.get("bgm_path", ""),
         old.get("kernel", ""),
         old.get("novel_text", ""),
         old.get("tts_task_id", ""),
@@ -128,8 +124,8 @@ def _do_pipeline(
     bgm_source: str,
     watermark_theme: str,
     watermark_author: str,
-    video_files_data: Optional[list[tuple[str, bytes]]],
-    bgm_file_data: Optional[tuple[str, bytes]],
+    video_paths: list[str],
+    bgm_path: str,
     kernel: str,
     novel_text: str,
     tts_task_id: str,
@@ -147,8 +143,8 @@ def _do_pipeline(
         bgm_source=bgm_source,
         watermark_theme=watermark_theme,
         watermark_author=watermark_author,
-        video_files_data=video_files_data,
-        bgm_file_data=bgm_file_data,
+        video_paths=video_paths,
+        bgm_path=bgm_path,
     )
 
     # ① 编译内核
@@ -184,17 +180,18 @@ def _do_pipeline(
 
     # ④ 视频合成
     _task_manager.update(task_id, stage="video", stage_label="视频合成", tts_task_id=tts_task_id)
-    vid = VideoService.start_video_task(
+    # 上传素材已在路由层落盘，此处直接把磁盘路径交给视频子任务
+    vid = video_tasks.start_task(
         audio_source="tts",
         audio_tts_task_id=tts_task_id,
         srt_source="tts",
         srt_tts_task_id=tts_task_id,
         video_source=video_source,
+        bg_video_paths=video_paths,
         bgm_source=bgm_source,
+        bgm_path=bgm_path,
         theme=watermark_theme,
         watermark_text=watermark_author,
-        video_files=[_wrap_upload(d) for d in video_files_data] if video_files_data else None,
-        bgm_file=_wrap_upload(bgm_file_data),
     )
     state = _wait_sub_task(vid, video_tasks.get_task_status, _STAGE_TIMEOUT["video"])
     _task_manager.update(task_id, stage="done", stage_label="完成", video_url=state.get("video_url"))

@@ -49,7 +49,7 @@ class VideoService:
         upload_dir = PathConfig.from_settings(settings, theme="").video_output / task_id / "_uploads"
         upload_dir.mkdir(parents=True, exist_ok=True)
 
-        bg_video_paths, bgm_path = _save_uploads(
+        bg_video_paths, bgm_path = save_uploads(
             upload_dir=upload_dir,
             audio_source=audio_source,
             srt_source=srt_source,
@@ -132,7 +132,7 @@ class VideoService:
 
 # ── 上传文件保存 ──────────────────────────────────────
 
-def _save_uploads(
+def save_uploads(
     *,
     upload_dir: Path,
     audio_source: str,
