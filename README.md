@@ -128,6 +128,8 @@ novel-ai-factory/
 ├── static/                        # 前端页面 (HTML/CSS/JS)
 ├── assets/                        # 素材 (背景视频 / BGM / 字体)
 ├── .env.example                   # 配置模板
+├── pyproject.toml                 # 项目元数据与 CLI 入口声明
+├── LICENSE                        # MIT 许可证
 └── requirements.txt
 ```
 
