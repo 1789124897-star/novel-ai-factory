@@ -140,11 +140,11 @@ novel-ai-factory/
 | 层 | 技术 |
 |----|------|
 | Web 框架 | FastAPI + Uvicorn |
-| LLM | DeepSeek API(OpenAI 兼容协议,JSON 结构化输出) |
+| LLM | DeepSeek API(OpenAI 兼容协议,结构化叙事输出) |
 | TTS | edge-tts(流式合成 + 词级时间戳) |
 | 视频处理 | MoviePy + Pillow + FFmpeg |
 | 音频处理 | pydub |
-| 异步任务 | threading + Lock 自研任务管理器,SSE 进度推送 |
+| 异步任务 | threading + Lock 自研任务管理器,前端轮询进度 |
 | 配置管理 | Pydantic Settings |
 
 ---
