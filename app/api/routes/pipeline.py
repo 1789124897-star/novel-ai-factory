@@ -30,7 +30,6 @@ async def start_pipeline(
     上传文件先落盘到任务专属目录——请求一结束 UploadFile 句柄即关闭，
     后台任务与续跑直接读磁盘路径。
     """
-    # 提前取号：上传文件需落到该任务的专属目录，任务执行时从同目录解析
     task_id = pipeline_tasks.new_task_id()
     upload_dir = PathConfig.from_settings(settings, theme="").video_output / task_id / "_uploads"
     upload_dir.mkdir(parents=True, exist_ok=True)

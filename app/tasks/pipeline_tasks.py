@@ -26,7 +26,6 @@ _STAGE_ORDER = ("compile", "generate", "tts", "video")
 
 
 def new_task_id() -> str:
-    """向任务管理器要一个新任务号（上传文件落位需提前取号）。"""
     return _task_manager.next_id()
 
 
