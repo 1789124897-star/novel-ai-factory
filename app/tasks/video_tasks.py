@@ -1,8 +1,11 @@
 """视频制作 — 异步任务调度"""
 
+from __future__ import annotations
+
 import logging
 import multiprocessing
 import shutil
+import threading
 from pathlib import Path
 from typing import Optional
 
@@ -17,6 +20,10 @@ from app.video import SubtitleRenderer, VideoPipeline, Watermark
 logger = logging.getLogger(__name__)
 
 _task_manager = TaskManager()
+
+# moviepy 渲染时会在系统临时目录写固定名字的中间文件（finalTEMP_MPY_wvf_snd.mp4），
+# 并发渲染会互抢导致 WinError 32，且 ffmpeg 子进程异常时可能残留占用，故串行化渲染。
+_VIDEO_RENDER_LOCK = threading.Lock()
 
 
 def new_task_id() -> str:
@@ -79,21 +86,18 @@ def _do_video(
     upload_dir = None
     try:
         paths = PathConfig.from_settings(settings, theme=theme)
-        task_dir = paths.video_output / task_id
-        task_dir.mkdir(parents=True, exist_ok=True)
-        upload_dir = task_dir / "_uploads"
-        upload_dir.mkdir(exist_ok=True)
+        upload_dir = paths.video_task_upload_dir(task_id)
 
         # 1. 解析音频
         _task_manager.update(task_id, step="解析音频源")
-        audio_path = VideoService.resolve_audio_path(audio_source, audio_tts_task_id, upload_dir, paths.tts_output)
+        audio_path = VideoService.resolve_audio_path(audio_source, audio_tts_task_id, upload_dir)
         if not audio_path:
             raise FileNotFoundError("音频源不可用")
 
         # 2. BGM 混音
         resolved_bgm: Optional[Path] = None
         if bgm_source == "default":
-            default_bgm = paths.bgm_path
+            default_bgm = paths.default_bgm_path
             if default_bgm.exists():
                 resolved_bgm = default_bgm
         elif bgm_source == "upload" and bgm_path:
@@ -103,7 +107,7 @@ def _do_video(
 
         if resolved_bgm:
             _task_manager.update(task_id, step="BGM 混音")
-            mixed_path = task_dir / "mixed.mp3"
+            mixed_path = paths.video_task_mixed_audio_file(task_id)
             VideoService.mix_bgm(audio_path, resolved_bgm, mixed_path)
             audio_path = mixed_path
 
@@ -118,7 +122,7 @@ def _do_video(
         # 4. 收集字幕 + 水印叠加层（内存）
         overlay_clips: list[ImageClip] = []
 
-        srt_path = VideoService.resolve_srt_path(srt_source, srt_tts_task_id, upload_dir, paths.tts_output) if srt_source != "none" else None
+        srt_path = VideoService.resolve_srt_path(srt_source, srt_tts_task_id, upload_dir) if srt_source != "none" else None
         if srt_path:
             _task_manager.update(task_id, step="烧录字幕")
             subtitle_renderer = SubtitleRenderer(settings, paths)
@@ -137,22 +141,27 @@ def _do_video(
 
         # 5. 统一编码
         _task_manager.update(task_id, step="编码输出")
-        output_path = task_dir / "final.mp4"
+        output_path = paths.video_task_final_video_file(task_id)
         final = CompositeVideoClip([video_clip, *overlay_clips], size=video_clip.size)
 
         threads = max(1, multiprocessing.cpu_count() // 2)
         logger.info("正在导出视频 (%d 线程) …", threads)
-        final.write_videofile(
-            str(output_path),
-            codec="libx264",
-            audio_codec="aac",
-            fps=24,
-            preset="ultrafast",
-            threads=threads,
-        )
+        try:
+            with _VIDEO_RENDER_LOCK:
+                final.write_videofile(
+                    str(output_path),
+                    codec="libx264",
+                    audio_codec="aac",
+                    fps=24,
+                    preset="ultrafast",
+                    threads=threads,
+                )
+        finally:
+            # 异常时确保释放 ffmpeg 子进程与临时文件句柄，防止僵尸进程占用
+            final.close()
         logger.info("视频已保存 → %s", output_path)
 
-        _task_manager.update(task_id, step="完成", video_url=VideoService.output_url(f"{task_id}/final.mp4"))
+        _task_manager.update(task_id, step="完成", video_url=VideoService.output_url(f"{task_id}/{output_path.name}"))
         logger.info("视频任务完成 task_id=%s", task_id)
 
     finally:

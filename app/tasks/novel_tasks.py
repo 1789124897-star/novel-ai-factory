@@ -1,5 +1,7 @@
 """叙事内核编译 — 异步任务调度"""
 
+from __future__ import annotations
+
 import logging
 from typing import Optional
 

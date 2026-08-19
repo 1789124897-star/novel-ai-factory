@@ -1,5 +1,7 @@
 """分阶段小说生成 — prompt 构建 + 四阶段引擎。"""
 
+from __future__ import annotations
+
 import logging
 import time
 from collections.abc import Callable
@@ -106,7 +108,7 @@ class NovelPrompt:
 
     @staticmethod
     def _load_base_prompt(paths: PathConfig) -> str:
-        prompt_path: Path = paths.theme_novel_prompt
+        prompt_path: Path = paths.novel_prompt
         if not prompt_path.exists():
             raise FileNotFoundError(f"Prompt 文件未找到: {prompt_path}")
         content = prompt_path.read_text(encoding="utf-8").strip()
@@ -164,7 +166,7 @@ class NovelGenerator:
     def generate_novel(
         self,
         target_words: int = 8000,
-        on_stage_complete: Optional[Callable[[str, str], None]] = None,
+        on_stage_complete: Callable[[str, str], None] | None = None,
     ) -> str:
         """完整四阶段生成流程。"""
         logger.info("开始分阶段小说生成（目标 ~%d 字）", target_words)
@@ -188,5 +190,6 @@ class NovelGenerator:
                 on_stage_complete(stage_info["name"], stage_content)
             logger.info("  完成 — %d 字", len(stage_content))
 
-        logger.info("所有阶段完成 — 共 %d 字", len(full_text))
+        self.paths.novel_final_file.write_text(full_text, encoding="utf-8")
+        logger.info("所有阶段完成 — 共 %d 字 → %s", len(full_text), self.paths.novel_final_file)
         return full_text

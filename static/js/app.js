@@ -329,6 +329,17 @@ function switchVideoBgmSource(mode) {
   document.getElementById("videoBgmUpload").style.display = mode === "upload" ? "" : "none";
 }
 
+/** 上传文件到暂存区，返回后端落盘文件名（任务 JSON 里引用）。 */
+async function uploadStaging(file, role) {
+  const fd = new FormData();
+  fd.append("role", role);
+  fd.append("file", file);
+  const resp = await fetch("/api/upload", { method: "POST", body: fd });
+  const data = await resp.json();
+  if (!data.data || !data.data.filename) throw new Error(data.detail ? parse422(data.detail) : (data.message || "上传失败"));
+  return data.data.filename;
+}
+
 async function doGenVideo() {
   const status = document.getElementById("videoStatus");
   const result = document.getElementById("videoResult");
@@ -355,31 +366,61 @@ async function doGenVideo() {
   status.className = "status loading";
   status.textContent = "正在提交视频制作任务…";
 
-  const form = new FormData();
-  form.append("audio_source", _videoAudioSrc);
-  form.append("audio_tts_task_id", _ttsTaskId);
-  form.append("srt_source", _videoSrtSrc);
-  form.append("srt_tts_task_id", _ttsTaskId);
-  form.append("theme", document.getElementById("videoThemeInput").value.trim());
-  form.append("watermark_text", document.getElementById("videoWatermarkText").value.trim());
-  form.append("video_source", _videoBgSrc);
-  form.append("bgm_source", _videoBgmSrc);
-
-  const audioFile = document.getElementById("videoAudioFile").files[0];
-  if (_videoAudioSrc === "upload" && audioFile) form.append("audio_file", audioFile);
-  const srtFile = document.getElementById("videoSrtFile").files[0];
-  if (_videoSrtSrc === "upload" && srtFile) form.append("srt_file", srtFile);
-  const bgmFile = document.getElementById("videoBgmFile").files[0];
-  if (_videoBgmSrc === "upload" && bgmFile) form.append("bgm_file", bgmFile);
-  if (_videoBgSrc === "upload" && _videoBgFiles.length) {
-    _videoBgFiles.forEach(f => form.append("video_files", f));
+  // 先把文件传到暂存区，拿回落盘文件名（任务接口只传 JSON）
+  let audioName = "", srtName = "", bgmName = "";
+  const bgVideoNames = [];
+  try {
+    const audioFile = document.getElementById("videoAudioFile").files[0];
+    if (_videoAudioSrc === "upload" && audioFile) {
+      status.textContent = "⏳ 正在上传音频文件…";
+      audioName = await uploadStaging(audioFile, "audio");
+    }
+    const srtFile = document.getElementById("videoSrtFile").files[0];
+    if (_videoSrtSrc === "upload" && srtFile) {
+      status.textContent = "⏳ 正在上传字幕文件…";
+      srtName = await uploadStaging(srtFile, "srt");
+    }
+    const bgmFile = document.getElementById("videoBgmFile").files[0];
+    if (_videoBgmSrc === "upload" && bgmFile) {
+      status.textContent = "⏳ 正在上传 BGM 文件…";
+      bgmName = await uploadStaging(bgmFile, "audio");
+    }
+    if (_videoBgSrc === "upload" && _videoBgFiles.length) {
+      status.textContent = "⏳ 正在上传背景视频…";
+      for (const f of _videoBgFiles) bgVideoNames.push(await uploadStaging(f, "video"));
+    }
+  } catch (e) {
+    status.className = "status error";
+    status.textContent = "文件上传失败: " + e.message;
+    btn.disabled = false;
+    btn.textContent = "🎬 生成视频";
+    return;
   }
+
+  status.textContent = "正在提交视频制作任务…";
 
   let taskId = null;
   try {
-    const resp = await fetch("/api/video", { method: "POST", body: form });
+    const resp = await fetch("/api/video", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        audio_source: _videoAudioSrc,
+        audio_tts_task_id: _ttsTaskId,
+        audio_filename: audioName,
+        srt_source: _videoSrtSrc,
+        srt_tts_task_id: _ttsTaskId,
+        srt_filename: srtName,
+        theme: document.getElementById("videoThemeInput").value.trim(),
+        watermark_text: document.getElementById("videoWatermarkText").value.trim(),
+        video_source: _videoBgSrc,
+        video_filenames: bgVideoNames,
+        bgm_source: _videoBgmSrc,
+        bgm_filename: bgmName,
+      }),
+    });
     const data = await resp.json();
-    if (!data.data || !data.data.task_id) throw new Error(data.message || "任务创建失败");
+    if (!data.data || !data.data.task_id) throw new Error(data.detail ? parse422(data.detail) : (data.message || "任务创建失败"));
     taskId = data.data.task_id;
   } catch (e) {
     status.className = "status error";
@@ -678,6 +719,7 @@ function switchOcBgmSource(mode) {
   const tabs = document.querySelectorAll("#ocAdvancedBody .video-source-tabs")[1].querySelectorAll(".tts-source-tab");
   tabs.forEach(t => t.classList.remove("active"));
   event.target.classList.add("active");
+  document.getElementById("ocBgmUpload").style.display = mode === "upload" ? "" : "none";
 }
 
 function addOcBgFile() {
@@ -735,6 +777,44 @@ function ocResetResumeBtn() {
   }
 }
 
+/** 把后端 422 的 detail 翻译成中文提示（字段名 + 规则）。 */
+function parse422(detail) {
+  // Service 层抛的 HTTPException(422) 的 detail 是纯字符串，直接透传
+  if (!Array.isArray(detail) || !detail.length) return typeof detail === "string" ? detail : "请求参数错误";
+  const FIELD_NAMES = {
+    theme: "故事主题",
+    target_words: "目标字数",
+    voice: "配音音色",
+    rate: "语速",
+    video_source: "背景视频来源",
+    bgm_source: "BGM 来源",
+    watermark_theme: "水印主题",
+    watermark_author: "水印作者",
+    audio_source: "音频来源",
+    audio_tts_task_id: "音频 TTS 任务",
+    srt_source: "字幕来源",
+    srt_tts_task_id: "字幕 TTS 任务",
+    watermark_text: "水印文字",
+    video_filenames: "背景视频文件",
+    bgm_filename: "BGM 文件",
+    audio_filename: "音频文件",
+    srt_filename: "字幕文件",
+  };
+  const parts = detail.map((d) => {
+    const field = (d.loc || []).slice(-1)[0];
+    const name = FIELD_NAMES[field] || field || "参数";
+    if (d.type === "greater_than_equal") return `${name}不能小于 ${d.ctx?.ge}`;
+    if (d.type === "less_than_equal") return `${name}不能大于 ${d.ctx?.le}`;
+    if (d.type === "string_too_short" || d.type === "missing") return `${name}不能为空`;
+    if (d.type === "string_too_long") return `${name}太长了`;
+    if (d.type === "string_pattern_mismatch") return `${name}格式不对`;
+    if (d.type === "literal_error") return `${name}的值不在允许范围内`;
+    if (d.type === "value_error") return d.msg.replace(/^Value error,\s*/, "");
+    return `${name}: ${d.msg}`;
+  });
+  return parts.join("；");
+}
+
 function ocGetConfig() {
   return {
     theme: document.getElementById("ocThemeInput").value.trim(),
@@ -744,22 +824,35 @@ function ocGetConfig() {
   };
 }
 
-/** 组装编排请求表单（音频/字幕固定走 TTS 产物，背景视频/BGM/水印来自高级选项）。 */
-function ocBuildForm() {
+/** 上传选中文件到暂存区，组装编排请求 JSON（音频/字幕固定走 TTS 产物，背景视频/BGM/水印来自高级选项）。 */
+async function ocBuildPayload() {
   const cfg = ocGetConfig();
-  const form = new FormData();
-  form.append("theme", cfg.theme);
-  form.append("target_words", cfg.targetWords);
-  form.append("voice", cfg.voice);
-  form.append("rate", cfg.rate);
-  form.append("video_source", _ocBgSrc);
-  form.append("bgm_source", _ocBgmSrc);
-  form.append("watermark_theme", document.getElementById("ocWatermarkTheme").value.trim());
-  form.append("watermark_author", document.getElementById("ocWatermarkAuthor").value.trim());
+  const status = document.getElementById("ocStatus");
+  const bgVideoNames = [];
   if (_ocBgSrc === "upload" && _ocBgFiles.length) {
-    _ocBgFiles.forEach(f => form.append("video_files", f));
+    status.textContent = "⏳ 正在上传背景视频…";
+    for (const f of _ocBgFiles) bgVideoNames.push(await uploadStaging(f, "video"));
   }
-  return form;
+  let bgmName = "";
+  if (_ocBgmSrc === "upload") {
+    const bgmFile = document.getElementById("ocBgmFileInput").files[0];
+    if (bgmFile) {
+      status.textContent = "⏳ 正在上传 BGM 文件…";
+      bgmName = await uploadStaging(bgmFile, "audio");
+    }
+  }
+  return {
+    theme: cfg.theme,
+    target_words: cfg.targetWords,
+    voice: cfg.voice,
+    rate: cfg.rate,
+    video_source: _ocBgSrc,
+    video_filenames: bgVideoNames,
+    bgm_source: _ocBgmSrc,
+    bgm_filename: bgmName,
+    watermark_theme: document.getElementById("ocWatermarkTheme").value.trim(),
+    watermark_author: document.getElementById("ocWatermarkAuthor").value.trim(),
+  };
 }
 
 const OC_STAGE_IDX = { compile: 0, generate: 1, tts: 2, video: 3 };
@@ -821,9 +914,11 @@ async function resumeOneClick() {
   status.className = "status";
 
   try {
-    const form = new FormData();
-    form.append("old_task_id", _ocTaskId);
-    const resp = await fetch("/api/pipeline/resume", { method: "POST", body: form });
+    const resp = await fetch("/api/pipeline/resume", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ old_task_id: _ocTaskId }),
+    });
     const payload = await resp.json();
     if (!payload.data?.task_id) throw new Error(payload.message || "续跑失败");
     _ocTaskId = payload.data.task_id;
@@ -864,9 +959,15 @@ async function doOneClick() {
   renderOcSteps(0);
 
   try {
-    const resp = await fetch("/api/pipeline", { method: "POST", body: ocBuildForm() });
+    status.textContent = "⏳ 正在上传文件…";
+    const body = await ocBuildPayload();
+    const resp = await fetch("/api/pipeline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
     const payload = await resp.json();
-    if (!payload.data?.task_id) throw new Error(payload.message || "任务创建失败");
+    if (!payload.data?.task_id) throw new Error(payload.detail ? parse422(payload.detail) : (payload.message || "任务创建失败"));
     _ocTaskId = payload.data.task_id;
     await ocRunPipeline(_ocTaskId);
     btn.onclick = function() { doOneClick(); };

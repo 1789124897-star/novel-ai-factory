@@ -42,7 +42,7 @@
         </div>
         <div class="field short" style="flex:0 0 120px;">
           <label>目标字数</label>
-          <input id="ocTargetWords" type="number" value="8000" min="1000" max="50000" step="500">
+          <input id="ocTargetWords" type="number" value="8000" min="100" max="50000" step="500">
         </div>
       </div>
 
@@ -105,7 +105,13 @@
           <h3>BGM（可选）</h3>
           <div class="tts-source-tabs video-source-tabs">
             <button class="tts-source-tab active" onclick="switchOcBgmSource('default')">🎵 默认 BGM</button>
+            <button class="tts-source-tab" onclick="switchOcBgmSource('upload')">📁 上传 BGM</button>
             <button class="tts-source-tab" onclick="switchOcBgmSource('none')">🔇 无 BGM</button>
+          </div>
+          <div id="ocBgmUpload" style="display:none;">
+            <div class="video-upload-row">
+              <input type="file" id="ocBgmFileInput" accept=".mp3,.wav">
+            </div>
           </div>
         </div>
 
@@ -204,7 +210,7 @@
         </div>
         <div class="field short" style="flex:0 0 120px;">
           <label>目标字数</label>
-          <input id="genTargetWords" type="number" value="8000" min="1000" max="50000" step="500">
+          <input id="genTargetWords" type="number" value="8000" min="100" max="50000" step="500">
         </div>
       </div>
 
@@ -422,6 +428,6 @@
 
 </div>
 
-<script src="/static/js/app.js?v=12"></script>
+<script src="/static/js/app.js?v=16"></script>
 </body>
 </html>

@@ -1,5 +1,7 @@
 """小说生成 — 异步任务调度"""
 
+from __future__ import annotations
+
 import logging
 from typing import Optional
 

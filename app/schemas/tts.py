@@ -1,12 +1,13 @@
 """TTS schemas"""
 
-from pydantic import BaseModel
+from __future__ import annotations
 
-DEFAULT_VOICE = "zh-CN-XiaoxiaoNeural"
-DEFAULT_RATE = "+0%"
+from pydantic import BaseModel, Field
 
 
 class TTSRequest(BaseModel):
-    text: str
-    voice: str = DEFAULT_VOICE
-    rate: str = DEFAULT_RATE
+    """Edge TTS 合成请求。"""
+
+    text: str = Field(min_length=1)
+    voice: str = Field(min_length=1, description="edge-tts 音色")
+    rate: str = Field(pattern=r"^[+-]\d+%$", description="语速")

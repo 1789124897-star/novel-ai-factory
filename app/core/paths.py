@@ -8,22 +8,32 @@ from pathlib import Path
 from .config import Settings
 
 
+def _resolve(path: Path) -> Path:
+    """相对路径拼项目根，绝对路径原样返回。"""
+    if path.is_absolute():
+        return path
+    return Path(__file__).resolve().parents[2] / path
+
+
 @dataclass(frozen=True)
 class PathConfig:
 
-    base_root: Path
-    settings: Settings
+    output_root: Path
+    font_path: Path
     _theme: str
 
     @classmethod
     def from_settings(cls, settings: Settings, theme: str) -> PathConfig:
-        """按主题构建路径配置，输出根目录取自 settings.OUTPUT_DIR。"""
-        return cls(base_root=Path(settings.OUTPUT_DIR), settings=settings, _theme=theme)
+        return cls(
+            output_root=_resolve(settings.OUTPUT_DIR),
+            font_path=_resolve(settings.WATERMARK_FONT),
+            _theme=theme,
+        )
 
     # ── 工具 ───────────────────────────────────────────────
 
     @staticmethod
-    def _ensure(path: Path) -> Path:
+    def _ensure_dir(path: Path) -> Path:
         """创建目录"""
         path.mkdir(parents=True, exist_ok=True)
         return path
@@ -32,6 +42,11 @@ class PathConfig:
     def project_root(self) -> Path:
         """项目根目录"""
         return Path(__file__).resolve().parents[2]
+
+    @property
+    def static_dir(self) -> Path:
+        """前端静态资源目录"""
+        return self.project_root / "static"
 
     @property
     def theme(self) -> str:
@@ -43,15 +58,24 @@ class PathConfig:
 
     @property
     def output(self) -> Path:
-        """输出根目录（自动创建）。"""
-        return self._ensure(self.base_root)
+        """输出根目录"""
+        return self._ensure_dir(self.output_root)
+
+    @property
+    def staging_dir(self) -> Path:
+        """上传文件暂存目录"""
+        return self._ensure_dir(self.output / "_staging")
+
+    def video_task_upload_dir(self, task_id: str) -> Path:
+        """指定视频任务的上传文件目录（有文件搬入时才创建）"""
+        return self.video_output / task_id / "_uploads"
 
     # ── 小说 ───────────────────────────────────────────────
 
     @property
     def novel_dir(self) -> Path:
-        """当前主题的小说目录（按《主题名》命名，自动创建）。"""
-        return self._ensure(self.output / "novel" / f"《{self.theme}》")
+        """当前主题的小说目录（《主题名》）。"""
+        return self._ensure_dir(self.output / "novel" / f"《{self.theme}》")
 
     @property
     def kernel_file(self) -> Path:
@@ -63,7 +87,7 @@ class PathConfig:
         return self.novel_dir / f"part_{round_num:02d}.txt"
 
     @property
-    def novel_output(self) -> Path:
+    def novel_final_file(self) -> Path:
         """四阶段合并后的完整小说文件。"""
         return self.novel_dir / f"《{self.theme}》.txt"
 
@@ -80,29 +104,45 @@ class PathConfig:
         return self.assets_dir / "videos"
 
     @property
-    def bgm_path(self) -> Path:
-        """默认背景音乐文件。"""
+    def default_bgm_path(self) -> Path:
+        """内置默认背景音乐文件。"""
         return self.assets_dir / "bgm" / "bgm.mp3"
-
-    @property
-    def font_path(self) -> Path:
-        """字幕和水印使用的主字体。"""
-        font_file = Path(self.settings.WATERMARK_FONT)
-        if not font_file.is_absolute():
-            font_file = self.project_root / font_file
-        return font_file
 
     # ── 视频与 TTS ─────────────────────────────────────────
 
     @property
     def video_output(self) -> Path:
-        """视频产物目录（自动创建）。"""
-        return self._ensure(self.output / "video")
+        """视频产物目录。"""
+        return self._ensure_dir(self.output / "video")
+
+    def video_task_dir(self, task_id: str) -> Path:
+        """指定视频任务的主目录"""
+        return self._ensure_dir(self.video_output / task_id)
+
+    def video_task_mixed_audio_file(self, task_id: str) -> Path:
+        """视频任务的 BGM 混音产物文件。"""
+        return self.video_task_dir(task_id) / "mixed.mp3"
+
+    def video_task_final_video_file(self, task_id: str) -> Path:
+        """视频任务的最终产物文件。"""
+        return self.video_task_dir(task_id) / "final.mp4"
 
     @property
     def tts_output(self) -> Path:
-        """TTS 配音产物目录（自动创建）。"""
-        return self._ensure(self.output / "tts")
+        """TTS 配音产物目录。"""
+        return self._ensure_dir(self.output / "tts")
+
+    def tts_task_dir(self, task_id: str) -> Path:
+        """指定 TTS 任务的产物目录。"""
+        return self._ensure_dir(self.tts_output / task_id)
+
+    def tts_voice_file(self, task_id: str) -> Path:
+        """指定 TTS 任务的语音产物文件。"""
+        return self.tts_task_dir(task_id) / "voice.mp3"
+
+    def tts_subtitle_file(self, task_id: str) -> Path:
+        """指定 TTS 任务的字幕产物文件。"""
+        return self.tts_task_dir(task_id) / "subtitle.srt"
 
     @property
     def prompts_dir(self) -> Path:
@@ -115,6 +155,6 @@ class PathConfig:
         return self.prompts_dir / "theme_compiler.txt"
 
     @property
-    def theme_novel_prompt(self) -> Path:
+    def novel_prompt(self) -> Path:
         """小说生成模板文件。"""
         return self.prompts_dir / "novel_prompt.txt"

@@ -1,5 +1,7 @@
 """视频拼接 — 背景片段串连 + 音频叠加。"""
 
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 from typing import Optional
@@ -11,11 +13,10 @@ from moviepy import (
 )
 
 from ..core.config import Settings
+from ..core.constants import VIDEO_ALLOWED_EXTENSIONS
 from ..core.paths import PathConfig
 
 logger = logging.getLogger(__name__)
-
-VIDEO_EXTENSIONS = (".mp4", ".avi", ".mov")
 
 
 class VideoPipeline:
@@ -29,7 +30,7 @@ class VideoPipeline:
     def _collect_clips(self, start_index: int, target_duration: float) -> list[Path]:
 
         # 排列视频路径
-        all_clips = sorted(clip_path for clip_path in self._paths.video_clip_dir.iterdir() if clip_path.suffix.lower() in VIDEO_EXTENSIONS)
+        all_clips = sorted(clip_path for clip_path in self._paths.video_clip_dir.iterdir() if clip_path.suffix.lower() in VIDEO_ALLOWED_EXTENSIONS)
         if not all_clips:
             raise FileNotFoundError(f"{self._paths.video_clip_dir} 中未找到视频片段")
 

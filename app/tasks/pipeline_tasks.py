@@ -6,10 +6,15 @@
 失败后可通过 resume_pipeline 从失败阶段续跑，不重复执行已完成步骤。
 """
 
+from __future__ import annotations
+
 import logging
+import shutil
 import time
 from typing import Optional
 
+from app.core.config import settings
+from app.core.paths import PathConfig
 from app.services.task_manager import TaskManager
 from app.tasks import gen_tasks, novel_tasks, tts_tasks, video_tasks
 
@@ -46,6 +51,7 @@ def _wait_sub_task(task_id: str, getter, timeout: float) -> dict:
 
 
 def start_pipeline(
+    *,
     theme: str,
     target_words: int,
     voice: str,
@@ -71,14 +77,19 @@ def start_pipeline(
         watermark_author,
         video_paths or [],
         bgm_path,
-        "",         # kernel（续跑时复用）
-        "",         # novel_text（续跑时复用）
-        "",         # tts_task_id（续跑时复用）
-        "compile",  # start_stage
+        "",         # kernel（首跑无产物）
+        "",         # novel_text（首跑无产物）
+        "",         # tts_task_id（首跑无产物）
+        "compile",  # start_stage（首跑从第一阶段开始）
         task_id=task_id,
     )
     logger.info("编排任务已启动 task_id=%s theme=%s", task_id, theme)
     return task_id
+
+
+def get_pipeline_status(task_id: str) -> Optional[dict]:
+    """查询编排任务状态。"""
+    return _task_manager.get(task_id)
 
 
 def resume_pipeline(old_task_id: str) -> str:
@@ -99,18 +110,13 @@ def resume_pipeline(old_task_id: str) -> str:
         old.get("watermark_author", ""),
         old.get("video_paths") or [],
         old.get("bgm_path", ""),
-        old.get("kernel", ""),
-        old.get("novel_text", ""),
-        old.get("tts_task_id", ""),
-        start_stage,
+        old.get("kernel", ""),      # kernel（复用旧任务产物）
+        old.get("novel_text", ""),  # novel_text（复用旧任务产物）
+        old.get("tts_task_id", ""), # tts_task_id（复用旧任务产物）
+        start_stage,                  # start_stage（从旧任务断点续跑）
     )
     logger.info("编排任务续跑 task_id=%s 原任务=%s 起始阶段=%s", task_id, old_task_id, start_stage)
     return task_id
-
-
-def get_pipeline_status(task_id: str) -> Optional[dict]:
-    """查询编排任务状态。"""
-    return _task_manager.get(task_id)
 
 
 def _do_pipeline(
@@ -125,12 +131,15 @@ def _do_pipeline(
     watermark_author: str,
     video_paths: list[str],
     bgm_path: str,
+
     kernel: str,
     novel_text: str,
     tts_task_id: str,
     start_stage: str,
 ) -> None:
     """后台执行全链路编排：依次启动子任务并轮询接力。"""
+    upload_dir = PathConfig.from_settings(settings, theme="").video_task_upload_dir(task_id)
+
     # 配置写回任务状态，供续跑恢复
     _task_manager.update(
         task_id,
@@ -158,9 +167,7 @@ def _do_pipeline(
         _task_manager.update(task_id, stage="generate", stage_label="四阶段小说生成", kernel=kernel)
         gid = gen_tasks.start_generation(theme=theme, kernel=kernel, target_words=target_words)
         state = _wait_sub_task(gid, gen_tasks.get_task_status, _STAGE_TIMEOUT["generate"])
-        novel_text = "\n\n".join(
-            state.get("stages", {}).get(n) or "" for n in ("起", "承", "转", "合")
-        ).strip()
+        novel_text = "\n\n".join(state.get("stages", {}).get(n) or "" for n in ("起", "承", "转", "合")).strip()
 
     # ③ TTS 配音
     if start_stage in ("compile", "generate", "tts") and not tts_task_id:
@@ -194,3 +201,7 @@ def _do_pipeline(
     )
     state = _wait_sub_task(vid, video_tasks.get_task_status, _STAGE_TIMEOUT["video"])
     _task_manager.update(task_id, stage="done", stage_label="完成", video_url=state.get("video_url"))
+
+    # 上传素材只在成功时清理；失败保留供 resume 续跑复用
+    if upload_dir.exists():
+        shutil.rmtree(upload_dir, ignore_errors=True)

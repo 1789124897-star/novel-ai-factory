@@ -1,5 +1,7 @@
 """TTS 路由"""
 
+from __future__ import annotations
+
 from fastapi import APIRouter, HTTPException
 
 from app.schemas.tts import TTSRequest

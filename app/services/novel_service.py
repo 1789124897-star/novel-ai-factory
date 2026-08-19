@@ -1,5 +1,7 @@
 """叙事内核编译。"""
 
+from __future__ import annotations
+
 import logging
 
 import requests

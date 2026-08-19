@@ -62,7 +62,10 @@ select = [
     "B",   # flake8-bugbear
     "UP",  # pyupgrade
 ]
-ignore = ["E501"]  # line too long — handled by formatter
+ignore = [
+    "E501",  # line too long — handled by formatter
+    "UP045",  # X | None 注解在 py39 + Pydantic 求值时报错，只能用 Optional
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

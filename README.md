@@ -54,13 +54,8 @@ cp .env.example .env
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
 | `DEEPSEEK_API_KEY` | DeepSeek API 密钥(必填) | — |
-| `DEEPSEEK_BASE_URL` | API 地址 | `https://api.deepseek.com/v1/chat/completions` |
-| `DEEPSEEK_MODEL` | 模型名 | `deepseek-v4-pro` |
-| `DEEPSEEK_TEMPERATURE` | 采样温度 | `0.85` |
-| `DEEPSEEK_MAX_TOKENS` | 单次生成最大 token | `12000` |
-| `OUTPUT_DIR` | 输出根目录 | `output` |
-| `BGM_VOLUME_RATIO` | BGM 混音音量比 | `0.3` |
-| `WATERMARK_FONT` | 水印/字幕字体 | `assets/fonts/LXGWWenKai-Regular.ttf` |
+
+其余配置项（API 地址、模型名、采样温度、日志等级、BGM 音量、水印字体等）均有默认值，定义在 `app/core/config.py`，一般无需修改。
 
 ### 4. 准备素材
 

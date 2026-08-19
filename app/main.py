@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +54,7 @@ def _cmd_novel(args: argparse.Namespace) -> int:
     prompt = NovelPrompt(theme, paths, kernel)
     generator = NovelGenerator(prompt, paths, settings)
     novel_text = generator.generate_novel(target_words=args.target_words)
-    paths.novel_output.write_text(novel_text, encoding="utf-8")
-    print(f"\n  ✅ 小说完成 — {len(novel_text)} 字 → {paths.novel_output}")
+    print(f"\n  ✅ 小说完成 — {len(novel_text)} 字 → {paths.novel_final_file}")
     return 0
 
 
@@ -114,8 +114,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         prompt = NovelPrompt(theme, paths, kernel)
         generator = NovelGenerator(prompt, paths, _settings)
         novel_text = generator.generate_novel(target_words=args.target_words)
-        paths.novel_output.write_text(novel_text, encoding="utf-8")
-        print(f"  ✅ 小说完成 — {len(novel_text)} 字 → {paths.novel_output}")
+        print(f"  ✅ 小说完成 — {len(novel_text)} 字 → {paths.novel_final_file}")
 
     print(f"\n{'='*60}")
     print("  🎉 管道执行完毕！")
@@ -159,7 +158,7 @@ _HANDLERS = {
 }
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Optional[list[str]] = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
 

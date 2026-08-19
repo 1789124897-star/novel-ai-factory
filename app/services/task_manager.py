@@ -1,5 +1,7 @@
 """轻量异步任务管理。"""
 
+from __future__ import annotations
+
 import logging
 import threading
 import uuid

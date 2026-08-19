@@ -1,5 +1,7 @@
 """应用配置。"""
 
+from __future__ import annotations
+
 from pathlib import Path
 
 from pydantic import field_validator
@@ -25,7 +27,7 @@ class Settings(BaseSettings):
 
     # ── 小说生成 (DeepSeek) ────────────────────────────────
     DEEPSEEK_API_KEY: str
-    DEEPSEEK_BASE_URL: str
+    DEEPSEEK_BASE_URL: str = "https://api.deepseek.com/v1/chat/completions"
 
     DEEPSEEK_MODEL: str = "deepseek-v4-pro"
 

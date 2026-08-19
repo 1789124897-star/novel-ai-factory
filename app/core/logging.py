@@ -1,5 +1,7 @@
 """日志配置。"""
 
+from __future__ import annotations
+
 import logging
 import sys
 from pathlib import Path
@@ -25,6 +27,8 @@ def setup_logging(settings: Settings) -> None:
 
     # 文件
     log_file = Path(settings.LOG_FILE)
+    if not log_file.is_absolute():
+        log_file = Path(__file__).resolve().parents[2] / log_file
     log_file.parent.mkdir(parents=True, exist_ok=True)
     file_handler = logging.FileHandler(log_file, encoding="utf-8")
     file_handler.setFormatter(formatter)

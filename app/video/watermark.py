@@ -1,5 +1,7 @@
 """MoviePy + Pillow 水印叠加。"""
 
+from __future__ import annotations
+
 import math
 from pathlib import Path
 from typing import Optional

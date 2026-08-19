@@ -1,5 +1,7 @@
 """Edge TTS 语音合成服务 — 文本 → 音频 + SRT 字幕"""
 
+from __future__ import annotations
+
 import logging
 import os
 from pathlib import Path
@@ -8,6 +10,7 @@ from typing import Optional
 import edge_tts
 
 from app.core.config import settings
+from app.core.constants import OUTPUT_URL_PREFIX
 from app.core.paths import PathConfig
 
 logger = logging.getLogger(__name__)
@@ -26,15 +29,14 @@ class TTSService:
     @staticmethod
     def output_url(rel_path: str) -> str:
         """output 目录下的文件 → 前端可访问 URL"""
-        return f"/output/tts/{rel_path}"
+        return f"{OUTPUT_URL_PREFIX}/tts/{rel_path}"
 
     @staticmethod
     async def synthesize(task_id: str, text: str, voice: str, rate: str) -> dict:
         """edge-tts 流式合成 → 写音频 + SRT，返回结果 dict。"""
-        task_dir = PathConfig.from_settings(settings, theme="").tts_output / task_id
-        task_dir.mkdir(parents=True, exist_ok=True)
-        audio_path = task_dir / "voice.mp3"
-        srt_path = task_dir / "subtitle.srt"
+        paths = PathConfig.from_settings(settings, theme="")
+        audio_path = paths.tts_voice_file(task_id)
+        srt_path = paths.tts_subtitle_file(task_id)
 
         communicate = edge_tts.Communicate(text=text, voice=voice, rate=rate)
         audio_bytes = bytearray()
@@ -61,8 +63,8 @@ class TTSService:
             task_id, duration_sec, audio_path,
         )
         return {
-            "audio_url": TTSService.output_url(f"{task_id}/voice.mp3"),
-            "srt_url": TTSService.output_url(f"{task_id}/subtitle.srt"),
+            "audio_url": TTSService.output_url(f"{task_id}/{audio_path.name}"),
+            "srt_url": TTSService.output_url(f"{task_id}/{srt_path.name}"),
             "duration_sec": round(duration_sec, 1),
         }
 

@@ -1,5 +1,7 @@
 """小说路由"""
 
+from __future__ import annotations
+
 from fastapi import APIRouter, HTTPException
 
 from app.core.config import settings
@@ -15,7 +17,7 @@ async def get_prompt_template() -> dict:
     """返回默认提示词模板，供前端编辑。"""
     try:
         paths = PathConfig.from_settings(settings, theme="")
-        content = paths.theme_novel_prompt.read_text(encoding="utf-8")
+        content = paths.novel_prompt.read_text(encoding="utf-8")
         return {"data": {"content": content}, "message": "ok"}
     except FileNotFoundError:
         raise HTTPException(500, "提示词模板文件未找到") from None
