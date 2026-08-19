@@ -1,10 +1,4 @@
-"""一键生成 — 全链路编排任务。
-
-把四个独立子任务（内核编译 → 小说生成 → TTS 配音 → 视频合成）
-串成一条链：逐个启动、轮询到完成、产物接力给下一步。
-编排任务本身也是 TaskManager 任务，产物与阶段信息写入任务状态，
-失败后可通过 resume_pipeline 从失败阶段续跑，不重复执行已完成步骤。
-"""
+"""一键生成 — 全链路编排任务。"""
 
 from __future__ import annotations
 
@@ -28,10 +22,6 @@ _POLL_INTERVAL = 2.0  # 子任务轮询间隔（秒）
 _STAGE_TIMEOUT = {"compile": 300, "generate": 1800, "tts": 900, "video": 3600}
 
 _STAGE_ORDER = ("compile", "generate", "tts", "video")
-
-
-def new_task_id() -> str:
-    return _task_manager.next_id()
 
 
 def _wait_sub_task(task_id: str, getter, timeout: float) -> dict:
@@ -77,10 +67,6 @@ def start_pipeline(
         watermark_author,
         video_paths or [],
         bgm_path,
-        "",         # kernel（首跑无产物）
-        "",         # novel_text（首跑无产物）
-        "",         # tts_task_id（首跑无产物）
-        "compile",  # start_stage（首跑从第一阶段开始）
         task_id=task_id,
     )
     logger.info("编排任务已启动 task_id=%s theme=%s", task_id, theme)
@@ -131,11 +117,10 @@ def _do_pipeline(
     watermark_author: str,
     video_paths: list[str],
     bgm_path: str,
-
-    kernel: str,
-    novel_text: str,
-    tts_task_id: str,
-    start_stage: str,
+    kernel: str = "",
+    novel_text: str = "",
+    tts_task_id: str = "",
+    start_stage: str = "compile",
 ) -> None:
     """后台执行全链路编排：依次启动子任务并轮询接力。"""
     upload_dir = PathConfig.from_settings(settings, theme="").video_task_upload_dir(task_id)

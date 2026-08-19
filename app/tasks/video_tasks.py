@@ -21,14 +21,8 @@ logger = logging.getLogger(__name__)
 
 _task_manager = TaskManager()
 
-# moviepy 渲染时会在系统临时目录写固定名字的中间文件（finalTEMP_MPY_wvf_snd.mp4），
-# 并发渲染会互抢导致 WinError 32，且 ffmpeg 子进程异常时可能残留占用，故串行化渲染。
+# moviepy 并发渲染会互抢固定名字的临时文件导致 WinError 32，故串行化渲染
 _VIDEO_RENDER_LOCK = threading.Lock()
-
-
-def new_task_id() -> str:
-    """向任务管理器要一个新任务号（上传文件落位需提前取号）。"""
-    return _task_manager.next_id()
 
 
 def start_task(

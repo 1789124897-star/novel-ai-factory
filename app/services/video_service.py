@@ -16,6 +16,7 @@ from pydub import AudioSegment
 from app.core.config import settings
 from app.core.constants import MAX_UPLOAD_MB, OUTPUT_URL_PREFIX
 from app.core.paths import PathConfig
+from app.services.task_manager import new_task_id
 
 logger = logging.getLogger(__name__)
 
@@ -45,14 +46,11 @@ class VideoService:
         video_filenames: Optional[list[str]] = None,
         bgm_filename: str = "",
     ) -> str:
-        """提交视频制作任务，返回 task_id。
-
-        文件已先经 /api/upload 落到暂存区，这里把暂存文件搬入任务专属目录。
-        """
+        """提交视频制作任务，返回 task_id。"""
         from app.tasks import video_tasks  # 延迟导入避免循环依赖
 
-        # 提前取号：上传文件需落到该任务的专属目录，任务执行时从同目录解析
-        task_id = video_tasks.new_task_id()
+        # 提前取号
+        task_id = new_task_id()
         upload_dir = PathConfig.from_settings(settings, theme="").video_task_upload_dir(task_id)
 
         bg_video_paths, bgm_path = stage_files_to_uploads(
@@ -98,15 +96,11 @@ class VideoService:
         from app.tasks import pipeline_tasks  # 延迟导入避免循环依赖
 
         # 提前取id，落盘上传的文件
-        task_id = pipeline_tasks.new_task_id()
+        task_id = new_task_id()
         upload_dir = PathConfig.from_settings(settings, theme="").video_task_upload_dir(task_id)
 
         video_paths, bgm_path = stage_files_to_uploads(
             upload_dir=upload_dir,
-            audio_source="tts",
-            audio_filename="",
-            srt_source="tts",
-            srt_filename="",
             video_source=video_source,
             video_filenames=video_filenames,
             bgm_source=bgm_source,
@@ -233,14 +227,14 @@ def move_staging_files(staging_names: list[str], upload_dir: Path, prefix: str) 
 def stage_files_to_uploads(
     *,
     upload_dir: Path,
-    audio_source: str,
-    audio_filename: str,
-    srt_source: str,
-    srt_filename: str,
     video_source: str,
-    video_filenames: Optional[list[str]] = None,
     bgm_source: str,
-    bgm_filename: str,
+    audio_source: str = "tts",
+    audio_filename: str = "",
+    srt_source: str = "tts",
+    srt_filename: str = "",
+    video_filenames: Optional[list[str]] = None,
+    bgm_filename: str = "",
 ) -> tuple[list[str], str]:
     """把暂存文件搬入任务专属上传目录，返回背景视频路径列表和 BGM 路径。"""
     bg_video_paths: list[str] = []

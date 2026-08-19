@@ -11,6 +11,11 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 
+def new_task_id() -> str:
+    """生成全局唯一任务号（与具体任务注册表无关）。"""
+    return str(uuid.uuid4())[:8]
+
+
 class TaskManager:
     """后台任务创建、状态查询、生命周期管理。"""
 
@@ -20,7 +25,7 @@ class TaskManager:
 
     def next_id(self) -> str:
         """生成新任务号。"""
-        return str(uuid.uuid4())[:8]
+        return new_task_id()
 
     def start(
         self,
